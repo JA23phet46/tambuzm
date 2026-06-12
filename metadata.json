@@ -1,0 +1,8 @@
+{
+  "name": "Remix: tambu",
+  "description": "Zambia\u0027s most trusted real estate marketplace for students, professionals, and property owners.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

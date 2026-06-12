@@ -1,0 +1,19 @@
+{
+  "short_name": "tambu",
+  "name": "tambu - Find your next home in Zambia",
+  "description": "Premium real estate search engine for student boarding houses and apartments in Zambia",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#b52330",
+  "theme_color": "#b52330",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/"
+}

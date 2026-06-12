@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #db2777;
+  --color-primary-hover: #be185d;
+  --color-primary-container: #fdf2f8;
+  --color-on-primary-container: #9d174d;
+  
+  --color-secondary: #0d9488;
+  --color-secondary-container: #ccfbf1;
+  --color-on-secondary-container: #115e59;
+  
+  --color-tertiary: #059669;
+  --color-tertiary-container: #d1fae5;
+  --color-on-tertiary-container: #064e3b;
+  
+  --color-bg-dark: #0f172a;
+  --color-bg-light: #ffffff;
+  --color-card-border: #f1f5f9;
+  --color-text-charcoal: #0f172a;
+  --color-text-muted: #64748b;
+  --color-airtel-red: #E41B17;
+  --color-mtn-yellow: #FFCC00;
+  
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-bg-light text-text-charcoal font-sans antialiased selection:bg-primary/20 selection:text-primary;
+  }
+}
+
+/* Beautiful White & Pink Aesthetic Class Overrides */
+
+.bg-\[\#b52330\] {
+  background-color: #db2777 !important;
+}
+
+.hover\:bg-\[\#9a1c26\]:hover {
+  background-color: #be185d !important;
+}
+
+.hover\:bg-\[\#8e1722\]:hover {
+  background-color: #be185d !important;
+}
+
+.hover\:bg-\[\#9c1c22\]:hover {
+  background-color: #be185d !important;
+}
+
+.bg-\[\#ffdad8\] {
+  background-color: #fdf2f8 !important;
+}
+
+.hover\:bg-\[\#ffdad8\]\/5:hover {
+  background-color: rgba(253, 242, 248, 0.05) !important;
+}
+
+.hover\:bg-\[\#ffdad8\]\/30:hover {
+  background-color: rgba(253, 242, 248, 0.3) !important;
+}
+
+.text-\[\#b52330\] {
+  color: #db2777 !important;
+}
+
+.border-\[\#b52330\] {
+  border-color: #db2777 !important;
+}
+
+.border-2.border-\[\#b52330\] {
+  border-color: #db2777 !important;
+}
+
+.hover\:border-\[\#b52330\]:hover {
+  border-color: #db2777 !important;
+}
+
+.text-\[\#5a403f\] {
+  color: #64748b !important;
+}
+
+.bg-\[\#ffcdcb\] {
+  background-color: #fce7f3 !important;
+}
+
+.border-\[\#e2bebc\] {
+  border-color: #fbcfe8 !important;
+}
+
+.bg-\[\#fbf9f8\] {
+  background-color: #ffffff !important;
+}
+
+.bg-\[\#f0eded\] {
+  background-color: #f8fafc !important;
+}
+
+.hover\:bg-\[\#f0eded\]:hover {
+  background-color: #f1f5f9 !important;
+}
+
+.bg-\[\#f0eded\]\/30 {
+  background-color: rgba(248, 250, 252, 0.3) !important;
+}
+
+.border-\[\#e4e2e2\] {
+  border-color: #f1f5f9 !important;
+}
+
+.bg-gradient-to-r.from-\[\#b52330\].to-\[\#9a1c26\] {
+  background-image: linear-gradient(to right, #db2777, #9d174d) !important;
+}
+
+.from-\[\#b52330\] {
+  --tw-gradient-from: #db2777 !important;
+  --tw-gradient-to: #9d174d !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-\[\#9a1c26\] {
+  --tw-gradient-to: #be185d !important;
+}
+
+/* Custom styles for smoother slider scrolls and active states */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+

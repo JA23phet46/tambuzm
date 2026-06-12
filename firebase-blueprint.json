@@ -1,0 +1,162 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile containing roles and metadata.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The UID of the user from Firebase Auth." },
+        "name": { "type": "string", "description": "Display name of the user." },
+        "email": { "type": "string", "description": "Email address of the user." },
+        "phone": { "type": "string", "description": "Contact phone number." },
+        "role": { "type": "string", "enum": ["seeker", "owner"], "description": "The system role of the user." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Self-explanatory." },
+        "trialEndsAt": { "type": "string", "format": "date-time", "description": "UTC date-time string when the owner's free trial expires." },
+        "isSubscribed": { "type": "boolean", "description": "True if the property owner has active payment subscription status." },
+        "subscriptionExpiresAt": { "type": "string", "format": "date-time", "description": "Date when active owners standard plan expires." }
+      },
+      "required": ["userId", "name", "email", "phone", "role"]
+    },
+    "Property": {
+      "title": "Property",
+      "description": "Real estate property listed on the platform.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier of the property." },
+        "name": { "type": "string", "description": "Title of the listing." },
+        "location": { "type": "string", "description": "Physical address." },
+        "province": { "type": "string", "enum": ["Lusaka", "Copperbelt", "Southern", "Central", "North-Western", "Eastern"], "description": "Zambian province name." },
+        "price": { "type": "number", "description": "Price in ZMW (Kwacha)." },
+        "type": { "type": "string", "enum": ["House", "Apartment", "Boarding House", "Commercial Space"], "description": "Building/listing type." },
+        "beds": { "type": "number" },
+        "baths": { "type": "number" },
+        "sqm": { "type": "number" },
+        "image": { "type": "string", "description": "Primary URL image representation." },
+        "verified": { "type": "boolean" },
+        "featured": { "type": "boolean" },
+        "rating": { "type": "number" },
+        "reviewsCount": { "type": "number" },
+        "saves": { "type": "number" },
+        "views": { "type": "number" },
+        "ownerId": { "type": "string", "description": "Firebase Auth UID who listed this property." },
+        "ownerName": { "type": "string" },
+        "ownerImage": { "type": "string" },
+        "available": { "type": "boolean", "description": "Whether the property is currently available for rent." },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "location", "province", "price", "type", "beds", "baths", "sqm", "image", "verified", "featured", "ownerId"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "Global notification or user activity log.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["message", "price_update"] },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "time": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "type", "title", "description", "time"]
+    },
+    "SearchHistory": {
+      "title": "SearchHistory",
+      "description": "Search history item performed by seeker.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "query": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "query"]
+    },
+    "BillingRecord": {
+      "title": "BillingRecord",
+      "description": "Invoice or momo transaction proof details.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string", "description": "UID of the user charged." },
+        "reference": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string" },
+        "status": { "type": "string", "enum": ["SUCCESSFUL", "FAILED"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "reference", "amount", "date", "status"]
+    },
+    "RentPayment": {
+      "title": "RentPayment",
+      "description": "Payments made by renters through the app to rent properties.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "reference": { "type": "string" },
+        "propertyId": { "type": "string" },
+        "propertyName": { "type": "string" },
+        "propertyLocation": { "type": "string" },
+        "renterId": { "type": "string" },
+        "renterName": { "type": "string" },
+        "renterEmail": { "type": "string" },
+        "renterPhone": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["SUCCESSFUL", "FAILED"] },
+        "date": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "reference", "propertyId", "propertyName", "renterId", "renterName", "ownerId", "amount", "status", "date", "createdAt"]
+    },
+    "Chat": {
+      "title": "Chat",
+      "description": "Real-time communication thread between a seeker and property owner.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "propertyId": { "type": "string" },
+        "propertyName": { "type": "string" },
+        "propertyImage": { "type": "string" },
+        "seekerId": { "type": "string" },
+        "seekerName": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "lastMessage": { "type": "string" },
+        "messages": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "propertyId", "propertyName", "seekerId", "seekerName", "ownerId", "ownerName", "messages"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles catalog."
+    },
+    "properties/{propertyId}": {
+      "schema": "Property",
+      "description": "Global marketplace directory."
+    },
+    "activities/{activityId}": {
+      "schema": "Activity",
+      "description": "Global notification logs."
+    },
+    "users/{userId}/searches/{searchId}": {
+      "schema": "SearchHistory",
+      "description": "Query items search history for seeker."
+    },
+    "users/{userId}/billing_records/{billingRecordId}": {
+      "schema": "BillingRecord",
+      "description": "User historical bills records."
+    },
+    "rent_payments/{rentPaymentId}": {
+      "schema": "RentPayment",
+      "description": "Rent payments registry made by seekers."
+    },
+    "chats/{chatId}": {
+      "schema": "Chat",
+      "description": "Chat conversations between Owners and Seekers."
+    }
+  }
+}
