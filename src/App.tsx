@@ -1887,7 +1887,7 @@ export default function App() {
                     <div className="border-t border-slate-100 my-4"></div>
 
                     {/* Secure Google Login Trigger Button */}
-                    <div className="space-y-2">
+                    <div className="space-y-2.5">
                       <span className="text-xs font-bold text-slate-800 block text-center uppercase tracking-wider text-[10px] font-mono">
                         2. Authenticate instantly
                       </span>
@@ -1907,33 +1907,68 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Super clean simulated sandbox access */}
-                  <div className="text-center space-y-3 pt-2">
-                    <div className="relative">
-                      <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
-                      <div className="relative flex justify-center text-[10px] uppercase">
-                        <span className="bg-[#fcfbfb] px-3 text-slate-400 font-semibold tracking-wider font-mono">
-                          Development Sandbox Quick Access
-                        </span>
+                  {/* Informative Security/Requirement alert */}
+                  <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-4 flex gap-3 items-start text-[#573911] text-xs">
+                    <AlertCircle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-extrabold text-amber-950">⚠️ Secure Registration Notice</p>
+                      <p className="text-[11px] leading-relaxed text-amber-900/90">
+                        To maintain secure identity verification on Tambu, <strong>all Seekers (Renters) and Listers (Landlords) are required to sign up and login exclusively using Google Authentication.</strong> Traditional email/password login is strictly restricted to authorized system administrators.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Traditional Admin Credentials Access */}
+                  <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5 uppercase tracking-wider font-mono">
+                        <Lock className="w-3.5 h-3.5 text-slate-600" />
+                        Tambu Admin Sign-In
+                      </h4>
+                      <p className="text-[11px] text-slate-500 leading-normal">
+                        Authorized staff can log into the service platform with system-registered credentials.
+                      </p>
+                    </div>
+
+                    <form onSubmit={handleLoginSubmit} className="space-y-3">
+                      <div className="space-y-1">
+                        <label htmlFor="admin-email" className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">
+                          Admin Email Address
+                        </label>
+                        <input
+                          id="admin-email"
+                          type="email"
+                          value={loginEmail}
+                          onChange={(e) => setLoginEmail(e.target.value)}
+                          placeholder="admin@company.com"
+                          className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-400 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
+                          required
+                        />
                       </div>
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-normal max-w-[340px] mx-auto">
-                      Want to instantly inspect the app without signing into any Google Accounts? Tap below to explore either mode immediately.
-                    </p>
-                    <div className="flex gap-2 justify-center items-center">
+
+                      <div className="space-y-1">
+                        <label htmlFor="admin-password" className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">
+                          Password
+                        </label>
+                        <input
+                          id="admin-password"
+                          type="password"
+                          value={loginPassword}
+                          onChange={(e) => setLoginPassword(e.target.value)}
+                          placeholder="Password"
+                          className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-400 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
+                          required
+                        />
+                      </div>
+
                       <button
-                        onClick={() => handleDemoLogin(UserRole.SEEKER)}
-                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg cursor-pointer transition-all active:scale-[0.98]"
+                        type="submit"
+                        className="w-full py-2.5 mt-1 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
                       >
-                        👤 Try Demo Renter
+                        <LogIn className="w-3.5 h-3.5" />
+                        Access Admin Console
                       </button>
-                      <button
-                        onClick={() => handleDemoLogin(UserRole.OWNER)}
-                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg cursor-pointer transition-all active:scale-[0.98]"
-                      >
-                        🏡 Try Demo Landlord
-                      </button>
-                    </div>
+                    </form>
                   </div>
                 </div>
               );
