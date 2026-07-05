@@ -8,8 +8,21 @@ import firebaseConfig from '../firebase-applet-config.json';
 import { Property, Activity, SearchHistory, BillingRecord, UserRole, RentPayment, SupportMessage } from './types';
 import { INITIAL_PROPERTIES } from './data';
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
+// Support Vercel deployment: load from environment variables first, fall back to development configuration
+const config = {
+  apiKey: (import.meta.env.VITE_FIREBASE_API_KEY as string) || firebaseConfig.apiKey,
+  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string) || firebaseConfig.authDomain,
+  projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID as string) || firebaseConfig.projectId,
+  storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string) || firebaseConfig.storageBucket,
+  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string) || firebaseConfig.messagingSenderId,
+  appId: (import.meta.env.VITE_FIREBASE_APP_ID as string) || firebaseConfig.appId,
+  measurementId: (import.meta.env.VITE_FIREBASE_MEASUREMENT_ID as string) || firebaseConfig.measurementId,
+};
+
+const databaseId = (import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID as string) || firebaseConfig.firestoreDatabaseId;
+
+const app = initializeApp(config);
+export const db = databaseId ? getFirestore(app, databaseId) : getFirestore(app); /* CRITICAL: The app will break without this line */
 export const auth = getAuth();
 
 // --- TEST CONNECTION AND AUTO-SEEDS MANDATED BY SKILLS ---

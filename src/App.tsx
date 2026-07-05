@@ -38,6 +38,9 @@ import { ListingFormView } from './components/ListingFormView';
 import { PhotoSelectorView } from './components/PhotoSelectorView';
 import { ChatView } from './components/ChatView';
 
+// Supabase Integration
+import { isSupabaseConfigured, savePropertyToSupabase } from './supabase';
+
 export default function App() {
   // --- Persistent State hooks ---
   const [currentPage, setCurrentPage] = useState<string>(() => {
@@ -1186,8 +1189,32 @@ export default function App() {
       }
     });
 
+    // Supabase Integration Coexistence
+    let finalRecord = { ...cleanedRecord };
+    const supabaseActive = isSupabaseConfigured();
+    if (supabaseActive) {
+      try {
+        console.log('Publishing listing details & photos to Supabase storage bucket & table...');
+        const savedData = await savePropertyToSupabase(cleanedRecord);
+        if (savedData && savedData[0]) {
+          const supRecord = savedData[0];
+          if (supRecord.image) {
+            finalRecord.image = supRecord.image;
+          }
+          if (Array.isArray(supRecord.photos)) {
+            finalRecord.photos = supRecord.photos;
+          }
+        }
+        console.log('Successfully saved listing in Supabase database!');
+      } catch (supabaseError: any) {
+        console.error('Supabase publishing failed:', supabaseError);
+        triggerToast('Supabase Publish Failed: ' + (supabaseError.message || 'Error occurred.'), 'error');
+        // Do not throw or block the main application's flow, fall back to default
+      }
+    }
+
     try {
-      await createPropertyListing(cleanedRecord);
+      await createPropertyListing(finalRecord);
       setSelectedPhotos([]); // Clear choice pool
 
       const billId = 'inv_' + Date.now();
@@ -1200,7 +1227,11 @@ export default function App() {
       };
       await addBillingRecord(currentUser.uid, newInvoice);
 
-      triggerToast('Property successfully listed & activated on tambu!', 'success');
+      if (supabaseActive) {
+        triggerToast('Property successfully listed on Tambu & Supabase!', 'success');
+      } else {
+        triggerToast('Property successfully listed & activated on tambu!', 'success');
+      }
       navigateTo('owner-dashboard');
     } catch (err: any) {
       console.error(err);
