@@ -7,6 +7,7 @@ interface ProcessingViewProps {
   onComplete: () => void;
   tx_ref?: string | null;
   amount?: number;
+  paymentUrl?: string | null;
 }
 
 export const ProcessingView: React.FC<ProcessingViewProps> = ({
@@ -15,6 +16,7 @@ export const ProcessingView: React.FC<ProcessingViewProps> = ({
   onComplete,
   tx_ref = null,
   amount = 100,
+  paymentUrl = null,
 }) => {
   const [seconds, setSeconds] = useState(10);
   const [step, setStep] = useState<'waiting' | 'success' | 'failed'>('waiting');
@@ -185,6 +187,22 @@ export const ProcessingView: React.FC<ProcessingViewProps> = ({
           <div className="flex items-center justify-center gap-1.5 text-[10px] text-gray-400 font-semibold select-none animate-pulse">
             <Shield className="w-3.5 h-3.5 text-emerald-600" /> Secure payment session active
           </div>
+
+          {paymentUrl && (
+            <div className="pt-2">
+              <a
+                href={paymentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs sm:text-sm font-extrabold rounded-xl transition-all shadow-sm active:scale-95"
+              >
+                Proceed to Checkout Portal <CheckCircle className="w-4 h-4" />
+              </a>
+              <p className="text-[10px] text-gray-500 mt-2">
+                If the secure checkout window didn't open automatically, please click the button above to complete your payment.
+              </p>
+            </div>
+          )}
 
           {/* SIM-Toolkit PIN / Card 3DS Password Prompt Overlay */}
           {showPrompt && (

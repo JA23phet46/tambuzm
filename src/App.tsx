@@ -309,6 +309,7 @@ export default function App() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [momoProvider, setMomoProvider] = useState<'mtn' | 'airtel' | 'card'>('mtn');
   const [currentFlwRef, setCurrentFlwRef] = useState<string | null>(null);
+  const [currentFlwUrl, setCurrentFlwUrl] = useState<string | null>(null);
 
   // --- Login/Register local states ---
   const [loginEmail, setLoginEmail] = useState('');
@@ -1538,6 +1539,17 @@ export default function App() {
       await createPropertyListing(finalRecord);
       setSelectedPhotos([]); // Clear choice pool
 
+      // Instantly update properties state and cache so it shows in the dashboard and home screen without delay
+      setProperties(prev => {
+        const index = prev.findIndex(p => p.id === finalRecord.id);
+        if (index === -1) {
+          const updated = [finalRecord, ...prev];
+          localStorage.setItem('tambu_properties', JSON.stringify(updated));
+          return updated;
+        }
+        return prev;
+      });
+
       const billId = 'inv_' + Date.now();
       const newInvoice: BillingRecord = {
         id: billId,
@@ -1675,11 +1687,15 @@ export default function App() {
       const data = await response.json();
       if (data.success) {
         setCurrentFlwRef(data.tx_ref);
-        if (data.simulated === false) {
-          window.location.href = data.paymentUrl;
-        } else {
-          navigateTo('payment-waiting');
+        setCurrentFlwUrl(data.paymentUrl);
+        
+        try {
+          window.open(data.paymentUrl, '_blank');
+        } catch (popupErr) {
+          console.warn('Popup blocked, relying on manual button:', popupErr);
         }
+        
+        navigateTo('payment-waiting');
       } else {
         triggerToast('Could not initialize Flutterwave transaction', 'error');
       }
@@ -1709,11 +1725,15 @@ export default function App() {
       const data = await response.json();
       if (data.success) {
         setCurrentFlwRef(data.tx_ref);
-        if (data.simulated === false) {
-          window.location.href = data.paymentUrl;
-        } else {
-          navigateTo('payment-waiting');
+        setCurrentFlwUrl(data.paymentUrl);
+        
+        try {
+          window.open(data.paymentUrl, '_blank');
+        } catch (popupErr) {
+          console.warn('Popup blocked, relying on manual button:', popupErr);
         }
+        
+        navigateTo('payment-waiting');
       } else {
         triggerToast('Could not initialize Flutterwave transaction', 'error');
       }
@@ -1742,11 +1762,15 @@ export default function App() {
       const data = await response.json();
       if (data.success) {
         setCurrentFlwRef(data.tx_ref);
-        if (data.simulated === false) {
-          window.location.href = data.paymentUrl;
-        } else {
-          navigateTo('payment-waiting');
+        setCurrentFlwUrl(data.paymentUrl);
+        
+        try {
+          window.open(data.paymentUrl, '_blank');
+        } catch (popupErr) {
+          console.warn('Popup blocked, relying on manual button:', popupErr);
         }
+        
+        navigateTo('payment-waiting');
       } else {
         triggerToast('Could not initialize Flutterwave transaction', 'error');
       }
@@ -2063,6 +2087,7 @@ export default function App() {
                   onComplete={handlePaymentComplete}
                   tx_ref={currentFlwRef}
                   amount={checkoutItem?.amount}
+                  paymentUrl={currentFlwUrl}
                 />
               );
 

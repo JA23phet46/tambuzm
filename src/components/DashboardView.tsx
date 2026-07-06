@@ -70,7 +70,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Filter listings owned by this user or let admin view all listings in the system
   const myProperties = isAdmin 
     ? properties 
-    : (ownerId && !ownerId.startsWith('demo_')
+    : (ownerId
         ? properties.filter((p) => p.ownerId === ownerId)
         : []
       );
