@@ -158,7 +158,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Muli Shani, {firstName}! 🇿🇲
+            Welcome, {firstName}! 🇿🇲
           </h1>
           <p className="text-xs sm:text-sm text-[#ffdad8] max-w-xl leading-relaxed">
             {isAdmin 

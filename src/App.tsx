@@ -2169,98 +2169,9 @@ export default function App() {
                       </p>
                     </div>
 
-                    {/* Google Action */}
-                    <div className="space-y-3">
-                      <button
-                        type="button"
-                        onClick={handleGoogleLogin}
-                        className="w-full py-3 px-4 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 cursor-pointer border border-slate-200 shadow-sm"
-                      >
-                        <svg className="w-4 h-4 shrink-0 bg-white rounded-full" viewBox="0 0 24 24">
-                          <path fill="#EA4335" d="M12 5.04c1.66 0 3.2.57 4.38 1.69l3.27-3.27C17.67 1.47 14.97 1 12 1 7.35 1 3.39 3.66 1.48 7.54l3.87 3C6.27 7.51 8.87 5.04 12 5.04z" />
-                          <path fill="#4285F4" d="M23.45 12.3c0-.82-.07-1.6-.21-2.3H12v4.4h6.4c-.28 1.44-1.09 2.66-2.3 3.47l3.6 2.8c2.1-1.94 3.75-4.8 3.75-8.37z" />
-                          <path fill="#FBBC05" d="M5.35 14.54c-.23-.69-.35-1.43-.35-2.2s.12-1.51.35-2.2L1.48 7.54C.54 9.4 0 11.48 0 13.66s.54 4.26 1.48 6.12l3.87-3.24z" />
-                          <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.93l-3.6-2.8c-1.1.74-2.5 1.18-4.36 1.18-3.13 0-5.73-2.47-6.65-5.5l-3.87 3C3.39 20.34 7.35 23 12 23z" />
-                        </svg>
-                        <span>Continue with Google</span>
-                      </button>
-                    </div>
-
-                    {/* Divider */}
-                    <div className="relative flex py-1 items-center">
-                      <div className="flex-grow border-t border-slate-100"></div>
-                      <span className="flex-shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or use email</span>
-                      <div className="flex-grow border-t border-slate-100"></div>
-                    </div>
-
                     {authErrorMsg && (
-                      <div className="p-3.5 bg-red-50 border border-red-100 rounded-2xl space-y-3.5">
+                      <div className="p-3.5 bg-red-50 border border-red-100 rounded-2xl">
                         <p className="text-[11px] text-[#b52330] leading-relaxed font-bold text-center">{authErrorMsg}</p>
-                        
-                        {/* Domain configuration assistance or skip option */}
-                        <div className="p-3 bg-white rounded-xl border border-red-100 text-[10px] text-[#5a403f] space-y-2">
-                          <p className="font-extrabold text-red-950">Bypass setup or test offline:</p>
-                          <p className="text-[9.5px] text-slate-500 leading-normal font-medium">
-                            If you want to skip or bypass live database setups, you can instantly log in with a fully simulated Sandbox profile right now!
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const name = isRegistering ? (regName || "Japhet Ndafi") : "Japhet Ndafi";
-                              const email = isRegistering ? (regEmail || "japhetndafi23@gmail.com") : "japhetndafi23@gmail.com";
-                              const phone = isRegistering ? (regPhone || "0977223344") : "0977223344";
-                              const role = isRegistering ? regRole : userRole;
-                              
-                              const simulatedProfile = {
-                                uid: 'sandbox_' + Math.random().toString(36).substring(2, 11),
-                                email: email,
-                                displayName: name,
-                                photoURL: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0',
-                              };
-
-                              setSimulatedUser(simulatedProfile);
-                              setIsLoggedIn(true);
-                              setUserName(simulatedProfile.displayName);
-                              setUserEmail(simulatedProfile.email);
-                              setUserPhone(phone);
-                              setUserRole(role);
-                              setTrialEndsAt(new Date(Date.now() + 9 * 24 * 3600 * 1000).toISOString());
-                              setIsSubscribed(false);
-                              
-                              // Save profile mock to localStorage fallbacks
-                              const localProfile = {
-                                userId: simulatedProfile.uid,
-                                name: simulatedProfile.displayName,
-                                email: simulatedProfile.email,
-                                phone: phone,
-                                role: role,
-                                savedIds: [],
-                                createdAt: new Date().toISOString(),
-                                trialEndsAt: new Date(Date.now() + 9 * 24 * 3600 * 1000).toISOString(),
-                                isSubscribed: false,
-                                subscriptionExpiresAt: null
-                              };
-                              localStorage.setItem(`tambu_profile_fallback_${simulatedProfile.uid}`, JSON.stringify(localProfile));
-                              
-                              triggerToast('Sandbox Account Activated Successfully!', 'success');
-                              navigateTo(role === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
-                            }}
-                            className="w-full py-2 bg-[#b52330] hover:bg-[#a01c27] text-white font-black text-[10px] rounded-lg shadow-sm transition-all cursor-pointer text-center"
-                          >
-                            🚀 Activate Sandbox Account (Skip Setup)
-                          </button>
-                        </div>
-
-                        {authErrorMsg.toLowerCase().includes('domain') || authErrorMsg.toLowerCase().includes('google') || authErrorMsg.toLowerCase().includes('oauth') || authErrorMsg.toLowerCase().includes('redirect') ? (
-                          <div className="p-2.5 bg-white rounded-lg border border-red-100 text-[9px] text-[#5a403f] space-y-1">
-                            <p className="font-bold text-red-950">How to authorize this domain for production Google login (Supabase):</p>
-                            <ol className="list-decimal pl-3 space-y-0.5 text-red-900">
-                              <li>Go to your Supabase Dashboard -&gt; Authentication -&gt; Providers</li>
-                              <li>Select Google and configure your Client ID & Secret</li>
-                              <li>Add this domain as an allowed Redirect URI: <code className="bg-red-50 px-1 py-0.5 rounded font-mono font-bold border border-red-150">{window.location.origin}</code></li>
-                            </ol>
-                          </div>
-                        ) : null}
                       </div>
                     )}
 
@@ -2416,7 +2327,7 @@ export default function App() {
                     )}
 
                     {/* Mode Switcher Footer */}
-                    <div className="text-center pt-2 space-y-3.5">
+                    <div className="text-center pt-2">
                       <button
                         type="button"
                         onClick={() => {
@@ -2429,47 +2340,6 @@ export default function App() {
                           ? 'Already have an account? Sign In' 
                           : "Don't have an account? Sign Up"}
                       </button>
-
-                      <div className="border-t border-slate-100 pt-3.5">
-                        <button
-                          type="button"
-                          onClick={() => setShowDemoSandbox(!showDemoSandbox)}
-                          className="text-[10px] text-slate-400 hover:text-slate-600 font-extrabold uppercase tracking-wider flex items-center justify-center gap-1 mx-auto cursor-pointer"
-                        >
-                          <span>🧪 Toggle Demo/Sandbox Tools</span>
-                          <span className="text-[8px]">{showDemoSandbox ? '▲' : '▼'}</span>
-                        </button>
-
-                        {showDemoSandbox && (
-                          <div className="mt-3 bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2.5 text-left animate-fade-in">
-                            <div className="flex justify-between items-center">
-                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Simulated Sandboxes</span>
-                              <span className="px-2 py-0.5 text-[8px] font-bold bg-green-50 text-green-600 rounded-full border border-green-100 uppercase tracking-wider">Instant Access</span>
-                            </div>
-                            <p className="text-[9.5px] leading-relaxed text-slate-400 font-medium">
-                              For quick testing without creating real database accounts, launch an offline simulated sandbox profile instantly.
-                            </p>
-                            <div className="grid grid-cols-2 gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleDemoLogin(UserRole.OWNER)}
-                                className="py-2.5 px-3 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-bold rounded-xl active:scale-[0.98] border border-slate-200 shadow-xs transition-all flex flex-col items-center justify-center gap-1 cursor-pointer"
-                              >
-                                <span className="text-sm">🏠</span>
-                                <span className="font-bold">Demo Landlord</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDemoLogin(UserRole.SEEKER)}
-                                className="py-2.5 px-3 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-bold rounded-xl active:scale-[0.98] border border-slate-200 shadow-xs transition-all flex flex-col items-center justify-center gap-1 cursor-pointer"
-                              >
-                                <span className="text-sm">🔍</span>
-                                <span className="font-bold">Demo Seeker</span>
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
                     </div>
                   </div>
                 </div>
