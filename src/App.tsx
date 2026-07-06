@@ -1555,8 +1555,25 @@ export default function App() {
       }
       navigateTo('owner-dashboard');
     } catch (err: any) {
-      console.error(err);
-      triggerToast('Error: Schema rules prevented publishing listing.', 'error');
+      console.error("Listing publish error:", err);
+      let errMsg = 'Schema rules prevented publishing listing.';
+      try {
+        if (err && err.message) {
+          const parsed = JSON.parse(err.message);
+          if (parsed && parsed.error) {
+            errMsg = `Schema/Permission Rule Denied: ${parsed.error} (${parsed.path || ''})`;
+          } else {
+            errMsg = err.message;
+          }
+        }
+      } catch (e) {
+        if (err && err.message) {
+          errMsg = err.message;
+        } else if (typeof err === 'string') {
+          errMsg = err;
+        }
+      }
+      triggerToast(`Error: ${errMsg}`, 'error');
     }
   };
 
