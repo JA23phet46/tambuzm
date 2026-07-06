@@ -12,16 +12,17 @@ import {
   INITIAL_BILLING_RECORDS 
 } from './data';
 
-// Firebase Client Imports
+// Client Auth and Database Imports (Backed by Supabase Auth)
 import { 
   auth, db, handleFirestoreError, OperationType, 
   loginWithGoogle, logoutUser, getUserProfile, saveUserProfile, 
   updateSavedProperties, createPropertyListing, deletePropertyListing, updatePropertyListing,
   addSearchHistory, getSearchHistory, addBillingRecord, getBillingRecords,
   addRentPayment, getAllRentPayments, getRentPaymentsForOwner, getRentPaymentsForRenter,
-  createSupportMessage, getAllSupportMessages
+  createSupportMessage, getAllSupportMessages,
+  onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  getSupabaseClient
 } from './firebase';
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { onSnapshot, collection, query, where, or } from 'firebase/firestore';
 
 // Modular Sub-components
@@ -39,7 +40,7 @@ import { PhotoSelectorView } from './components/PhotoSelectorView';
 import { ChatView } from './components/ChatView';
 
 // Supabase Integration
-import { isSupabaseConfigured, savePropertyToSupabase } from './supabase';
+import { isSupabaseConfigured, savePropertyToSupabase, getPropertiesFromSupabase } from './supabase';
 
 export default function App() {
   // --- Persistent State hooks ---
@@ -327,6 +328,17 @@ export default function App() {
     }
   });
   const [authErrorMsg, setAuthErrorMsg] = useState<string>('');
+  const [authTab, setAuthTab] = useState<'google' | 'email-signup' | 'email-login'>('google');
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [showDemoSandbox, setShowDemoSandbox] = useState(false);
+
+  useEffect(() => {
+    if (currentPage === 'register') {
+      setIsRegistering(true);
+    } else if (currentPage === 'login') {
+      setIsRegistering(false);
+    }
+  }, [currentPage]);
 
   // Synchronized refs to protect onAuthStateChanged from tearing down on high-frequency key inputs and page navigation
   const regNameRef = React.useRef(regName);
@@ -389,6 +401,91 @@ export default function App() {
       window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
     }
   }, [userRole, checkoutItem]);
+
+  // --- Process Supabase OAuth hash/callback in popup or main window ---
+  useEffect(() => {
+    const isCallback = 
+      window.location.pathname.includes('/auth/callback') || 
+      window.location.hash.includes('access_token=') || 
+      window.location.search.includes('code=') ||
+      window.location.search.includes('error=');
+
+    if (isCallback) {
+      if (window.opener) {
+        // We are inside the popup window launched by the parent!
+        // Notify the parent window that OAuth succeeded or failed
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const errorMsg = params.get('error_description') || params.get('error');
+          if (errorMsg) {
+            window.opener.postMessage({ type: 'TAMBU_AUTH_ERROR', message: errorMsg }, window.location.origin);
+          } else {
+            window.opener.postMessage({ type: 'TAMBU_AUTH_SUCCESS' }, window.location.origin);
+          }
+        } catch (e) {
+          console.error("Failed to notify parent window opener:", e);
+        }
+        // Close the popup window automatically
+        window.close();
+      } else {
+        // This is a direct redirection in the main window (fallback if popup was blocked)
+        triggerToast('Google Sign-In succeeded!', 'success');
+        const cleanUrl = window.location.protocol + "//" + window.location.host + "/";
+        window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
+        setCurrentPage('explore');
+      }
+    }
+  }, []);
+
+  // --- Listen for popup OAuth events ---
+  useEffect(() => {
+    const handleAuthMessage = async (event: MessageEvent) => {
+      const origin = event.origin;
+      // Allow preview domains, run.app, and localhost
+      const isAllowedOrigin = 
+        origin.endsWith('.run.app') || 
+        origin.includes('localhost') || 
+        origin.includes('127.0.0.1') || 
+        origin.includes('aistudio') || 
+        origin.endsWith('.net');
+      if (!isAllowedOrigin) {
+        return;
+      }
+      
+      if (event.data?.type === 'TAMBU_AUTH_SUCCESS') {
+        triggerToast('Welcome back! Google Sign-In succeeded.', 'success');
+        
+        // Force sync parent Supabase client with the new session stored in shared LocalStorage
+        try {
+          const client = getSupabaseClient();
+          if (client) {
+            const { data: { session } } = await client.auth.getSession();
+            if (session) {
+              await client.auth.setSession(session);
+              
+              // Determine final role and redirect
+              const profile = await getUserProfile(session.user.id);
+              let finalRole = UserRole.SEEKER;
+              if (profile) {
+                finalRole = profile.role;
+              } else {
+                finalRole = currentPage === 'register' ? regRole : userRole;
+              }
+              setUserRole(finalRole);
+              navigateTo(finalRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
+            }
+          }
+        } catch (e) {
+          console.error("Failed to sync auth session in parent:", e);
+        }
+      } else if (event.data?.type === 'TAMBU_AUTH_ERROR') {
+        triggerToast(`Google Authentication failed: ${event.data.message || 'Unknown error'}`, 'error');
+      }
+    };
+    
+    window.addEventListener('message', handleAuthMessage);
+    return () => window.removeEventListener('message', handleAuthMessage);
+  }, [currentPage, regRole, userRole]);
 
   // --- Dynamic Periodic Subscription/Trial Expiry Check ---
   useEffect(() => {
@@ -458,7 +555,7 @@ export default function App() {
         
         // Fetch/save user profile securely
         const profile = await getUserProfile(firebaseUser.uid);
-        const isSystemAdminMail = firebaseUser.email?.toLowerCase() === 'admin@tambu.com' || firebaseUser.email?.toLowerCase() === 'japhetndafi23@gmail.com';
+        const isSystemAdminMail = firebaseUser.email?.toLowerCase() === 'admin@tambu.com';
         
         if (isSystemAdminMail) {
           setIsAdmin(true);
@@ -561,7 +658,27 @@ export default function App() {
       } else {
         const cachedSimulated = localStorage.getItem('tambu_simulated_user');
         if (cachedSimulated) {
-          setIsLoggedIn(true);
+          try {
+            const parsed = JSON.parse(cachedSimulated);
+            setIsLoggedIn(true);
+            setUserName(parsed.displayName || parsed.name || 'User');
+            setUserEmail(parsed.email || '');
+            setUserPhone(parsed.phone || '');
+            
+            const isSystemAdminMail = parsed.email?.toLowerCase() === 'admin@tambu.com';
+            if (isSystemAdminMail) {
+              setIsAdmin(true);
+              setAdminModeActive(true);
+              setUserRole(UserRole.OWNER);
+            } else {
+              const savedRole = localStorage.getItem('tambu_role') as UserRole;
+              if (savedRole) {
+                setUserRole(savedRole);
+              }
+            }
+          } catch (e) {
+            setIsLoggedIn(false);
+          }
         } else {
           setIsLoggedIn(false);
           localStorage.setItem('tambu_logged_in', 'false');
@@ -577,6 +694,38 @@ export default function App() {
 
   // Real-time property database synchronization conforming strictly to skill onSnapshot pattern
   useEffect(() => {
+    let active = true;
+    if (isSupabaseConfigured()) {
+      getPropertiesFromSupabase().then((supProps) => {
+        if (supProps && active) {
+          const localCustom = localStorage.getItem('tambu_local_properties');
+          const parsedLocal: Property[] = localCustom ? JSON.parse(localCustom) : [];
+          const filteredLocal = parsedLocal.filter(p => p.ownerId !== 'system_admin_or_owner_seed');
+
+          const merged = [...supProps];
+          filteredLocal.forEach((localProp) => {
+            const index = merged.findIndex((p) => p.id === localProp.id);
+            if (index === -1) {
+              merged.push(localProp);
+            }
+          });
+
+          let filteredMerged = merged;
+          try {
+            const deletedKey = 'tambu_deleted_property_ids';
+            const cachedDeleted = localStorage.getItem(deletedKey);
+            const deletedList = cachedDeleted ? JSON.parse(cachedDeleted) : [];
+            if (Array.isArray(deletedList) && deletedList.length > 0) {
+              filteredMerged = merged.filter(p => !deletedList.includes(p.id));
+            }
+          } catch (e) {}
+
+          setProperties(filteredMerged);
+          localStorage.setItem('tambu_properties', JSON.stringify(filteredMerged));
+        }
+      });
+    }
+
     const pathForOnSnapshot = 'properties';
     const unsubscribeProperties = onSnapshot(collection(db, pathForOnSnapshot), (snapshot) => {
       const items: Property[] = [];
@@ -641,7 +790,10 @@ export default function App() {
       }
     });
 
-    return () => unsubscribeProperties();
+    return () => {
+      active = false;
+      unsubscribeProperties();
+    };
   }, []);
 
   // Real-time Rent payments database synchronization
@@ -913,19 +1065,62 @@ export default function App() {
   const handleGoogleLogin = async () => {
     try {
       setAuthErrorMsg('');
-      const user = await loginWithGoogle();
-      triggerToast(`Welcome back, ${user.displayName || 'user'}!`, 'success');
+      const authData = await loginWithGoogle();
       
-      let finalRole: UserRole = UserRole.SEEKER;
-      const profile = await getUserProfile(user.uid);
-      if (profile) {
-        finalRole = profile.role;
-      } else {
-        finalRole = currentPage === 'register' ? regRole : userRole;
+      // If it returned a direct user object (e.g. from Firebase Auth Popup or mock fallback)
+      if (authData && (authData as any).user) {
+        const u = (authData as any).user;
+        triggerToast('Welcome back! Google Sign-In succeeded.', 'success');
+        
+        const profile = await getUserProfile(u.uid);
+        let finalRole = UserRole.SEEKER;
+        if (profile) {
+          finalRole = profile.role;
+        } else {
+          finalRole = currentPage === 'register' ? regRole : userRole;
+        }
+        setUserRole(finalRole);
+        navigateTo(finalRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
+        return;
       }
-      
-      setUserRole(finalRole);
-      navigateTo(finalRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
+
+      // If it returned a Supabase OAuth URL to open
+      if (authData && (authData as any).url) {
+        // Open the popup window in the center of the screen
+        const width = 600;
+        const height = 700;
+        const left = window.screen.width / 2 - width / 2;
+        const top = window.screen.height / 2 - height / 2;
+        
+        const popup = window.open(
+          (authData as any).url,
+          'tambu_google_auth',
+          `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes`
+        );
+        
+        if (!popup) {
+          triggerToast('Popup blocked! Please allow popups for this site to sign in with Google.', 'error');
+        } else {
+          triggerToast('Opening secure Google Sign-In...', 'success');
+          
+          // Set a monitoring interval to detect when the popup is closed by the user
+          const monitor = setInterval(() => {
+            if (popup.closed) {
+              clearInterval(monitor);
+              
+              // Wait a moment for any message handlers to finish processing
+              setTimeout(() => {
+                const isLoggedInNow = localStorage.getItem('tambu_logged_in') === 'true';
+                if (!isLoggedInNow) {
+                  setAuthErrorMsg("Google Sign-In failed or was closed. Please ensure the Google provider is enabled and configured in your Supabase project under Authentication -> Providers.");
+                }
+              }, 1200);
+            }
+          }, 1000);
+        }
+      } else {
+        throw new Error('Could not retrieve Google sign-in configuration.');
+      }
     } catch (err: any) {
       console.error(err);
       triggerToast('Google authentication cancelled or failed', 'error');
@@ -968,7 +1163,7 @@ export default function App() {
       localStorage.setItem('tambu_logged_in', 'true');
       
       let finalRole: UserRole = UserRole.SEEKER;
-      const isSystemAdminMail = credential.user.email?.toLowerCase() === 'admin@tambu.com' || credential.user.email?.toLowerCase() === 'japhetndafi23@gmail.com';
+      const isSystemAdminMail = credential.user.email?.toLowerCase() === 'admin@tambu.com';
       if (isSystemAdminMail) {
         setIsAdmin(true);
         setAdminModeActive(true);
@@ -993,6 +1188,14 @@ export default function App() {
     } catch (err: any) {
       console.warn("Real authentication failed or is not initialized yet in console. Checking simulated offline fallback:", err);
 
+      // If Supabase is configured and we got an authentication error, display it explicitly
+      if (isSupabaseConfigured()) {
+        const errorMsg = err.message || err.description || String(err);
+        setAuthErrorMsg(`Supabase Authentication failed: ${errorMsg}`);
+        triggerToast(`Login failed: ${errorMsg}`, 'error');
+        return;
+      }
+
       // Conformance credentials requirement for simulated admin fallback 
       if (loginEmail.toLowerCase() === 'admin@tambu.com' && loginPassword === 'Admin2026') {
         setIsAdmin(true);
@@ -1016,26 +1219,92 @@ export default function App() {
         return;
       }
 
-      if (err.code === 'auth/operation-not-allowed' || err.message?.includes('operation-not-allowed')) {
-        // Fallback for demo login under admin if users are testing with custom admin accounts in preview 
-        if (loginEmail.toLowerCase() === 'admin@tambu.com') {
-          setIsAdmin(true);
-          setAdminModeActive(true);
+      // Scan localStorage for any matching cached sandbox profiles
+      try {
+        let foundProfile = null;
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('tambu_profile_fallback_')) {
+            const valStr = localStorage.getItem(key);
+            if (valStr) {
+              const val = JSON.parse(valStr);
+              if (val && val.email?.toLowerCase() === loginEmail.toLowerCase()) {
+                foundProfile = val;
+                break;
+              }
+            }
+          }
+        }
+
+        if (foundProfile) {
+          const simulatedUserObj = {
+            uid: foundProfile.userId,
+            email: foundProfile.email,
+            displayName: foundProfile.name,
+            photoURL: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0'
+          };
+          setSimulatedUser(simulatedUserObj);
           setIsLoggedIn(true);
-          setUserName('Tambu Administrator');
-          setUserEmail('admin@tambu.com');
-          setUserPhone('+260 977 112233');
-          setUserRole(UserRole.OWNER);
+          setUserName(foundProfile.name);
+          setUserEmail(foundProfile.email);
+          setUserPhone(foundProfile.phone || '0977223344');
+          setUserRole(foundProfile.role);
+          setTrialEndsAt(foundProfile.trialEndsAt || '');
+          setIsSubscribed(foundProfile.isSubscribed === true);
           setLoginEmail('');
           setLoginPassword('');
-          triggerToast('Logged in successfully under demo admin clearance.', 'success');
-          navigateTo('owner-dashboard');
+          triggerToast(`Welcome back, ${foundProfile.name}! Logged in successfully.`, 'success');
+          navigateTo(foundProfile.role === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
           return;
         }
-        setAuthErrorMsg("Email & Password authentication is not enabled in your Firebase console.");
-      } else {
-        triggerToast(err.message || 'Authentication credentials validation failed', 'error');
+      } catch (e) {
+        console.error("Error scanning local sandbox profiles:", e);
       }
+
+      // Default sandbox login fallback for unconfigured environments
+      console.log("No matching cached profile. Dynamically generating sandbox profile...");
+      const userPart = loginEmail.split('@')[0];
+      const prettyName = userPart.charAt(0).toUpperCase() + userPart.slice(1);
+      const simulatedUid = 'sandbox_' + Math.random().toString(36).substring(2, 11);
+      
+      const newProfile = {
+        userId: simulatedUid,
+        name: prettyName,
+        email: loginEmail,
+        phone: '0977223344',
+        role: userRole, // Uses the current UI selected role preference
+        savedIds: [],
+        createdAt: new Date().toISOString(),
+        trialEndsAt: new Date(Date.now() + 9 * 24 * 3600 * 1000).toISOString(),
+        isSubscribed: false,
+        subscriptionExpiresAt: null
+      };
+
+      try {
+        localStorage.setItem(`tambu_profile_fallback_${simulatedUid}`, JSON.stringify(newProfile));
+      } catch (e) {
+        console.error("Local storage fallback write failed:", e);
+      }
+
+      const simulatedUserObj = {
+        uid: simulatedUid,
+        email: loginEmail,
+        displayName: prettyName,
+        photoURL: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0'
+      };
+
+      setSimulatedUser(simulatedUserObj);
+      setIsLoggedIn(true);
+      setUserName(prettyName);
+      setUserEmail(loginEmail);
+      setUserPhone('0977223344');
+      setTrialEndsAt(newProfile.trialEndsAt);
+      setIsSubscribed(false);
+      setLoginEmail('');
+      setLoginPassword('');
+      
+      triggerToast('Auth service offline. Activated Sandbox Account!', 'success');
+      navigateTo(userRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
     }
   };
 
@@ -1074,12 +1343,64 @@ export default function App() {
       triggerToast('Account created successfully!', 'success');
       navigateTo(regRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
     } catch (err: any) {
-      console.error(err);
-      if (err.code === 'auth/operation-not-allowed' || err.message?.includes('operation-not-allowed')) {
-        setAuthErrorMsg("Email & Password authentication is not enabled in your Firebase console.");
-      } else {
-        triggerToast(err.message || 'Registration verification failed', 'error');
+      console.warn("Real database registration failed. Activating local Sandbox fallback:", err);
+      
+      // If Supabase is configured and registration failed, display the actual error
+      if (isSupabaseConfigured()) {
+        const errorMsg = err.message || err.description || String(err);
+        setAuthErrorMsg(`Supabase Registration failed: ${errorMsg}`);
+        triggerToast(`Registration failed: ${errorMsg}`, 'error');
+        return;
       }
+
+      const now = new Date();
+      const trialDate = new Date();
+      trialDate.setDate(now.getDate() + 9); // 9-day trial for owners
+      
+      const simulatedUid = 'sandbox_' + Math.random().toString(36).substring(2, 11);
+      const newProfile = {
+        userId: simulatedUid,
+        name: regName,
+        email: regEmail,
+        phone: regPhone,
+        role: regRole,
+        savedIds: [],
+        createdAt: now.toISOString(),
+        trialEndsAt: trialDate.toISOString(),
+        isSubscribed: false,
+        subscriptionExpiresAt: null
+      };
+
+      // Save user sandbox profile mock to LocalStorage
+      try {
+        localStorage.setItem(`tambu_profile_fallback_${simulatedUid}`, JSON.stringify(newProfile));
+      } catch (e) {
+        console.error("Local storage mock save failed:", e);
+      }
+
+      const simulatedUserObj = {
+        uid: simulatedUid,
+        email: regEmail,
+        displayName: regName,
+        photoURL: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0'
+      };
+
+      setSimulatedUser(simulatedUserObj);
+      setIsLoggedIn(true);
+      setUserName(regName);
+      setUserEmail(regEmail);
+      setUserPhone(regPhone);
+      setUserRole(regRole);
+      setTrialEndsAt(newProfile.trialEndsAt);
+      setIsSubscribed(false);
+      
+      setRegEmail('');
+      setRegName('');
+      setRegPhone('');
+      setRegPassword('');
+      
+      triggerToast('Auth service offline. Activated local Sandbox Account!', 'success');
+      navigateTo(regRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
     }
   };
 
@@ -1833,173 +2154,323 @@ export default function App() {
             case 'login':
             case 'register':
               return (
-                <div className="max-w-[440px] mx-auto space-y-6 animate-fade-in pt-8 pb-20 px-4 sm:px-0">
-                  <div className="text-center space-y-2">
-                    <span className="font-extrabold text-4xl text-[#b52330] lowercase tracking-tight select-none font-sans">tambu</span>
-                    <h1 className="text-xl font-black text-[#1b1c1c] tracking-tight">Connect Securely</h1>
-                    <p className="text-xs text-[#5a403f] max-w-[340px] mx-auto leading-relaxed">
-                      Tambu uses Google Account verification to provide simple, password-free rental boarding solutions.
-                    </p>
-                  </div>
-
-                  {authErrorMsg && (
-                    <div className="p-4 bg-red-50 border border-red-200 rounded-2xl space-y-3">
-                      <div className="flex gap-2.5 items-start text-red-800">
-                        <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-[#b52330]" />
-                        <div className="text-xs space-y-1">
-                          <p className="font-bold text-[#b52330]">Firebase Service Notification</p>
-                          <p className="text-red-700 leading-relaxed font-semibold">{authErrorMsg}</p>
-                        </div>
-                      </div>
-                      {authErrorMsg.toLowerCase().includes('domain') || authErrorMsg.toLowerCase().includes('google') || authErrorMsg.toLowerCase().includes('oauth') || authErrorMsg.toLowerCase().includes('redirect') ? (
-                        <div className="p-3 bg-white rounded-xl border border-red-100 text-[11px] text-[#5a403f] space-y-2">
-                          <p className="font-bold text-red-950">How to authorize this domain (No Add Domain found?):</p>
-                          <div className="text-[10px] text-red-900 bg-red-50 p-2.5 rounded-xl border border-red-200 space-y-1">
-                            <strong>⚠️ Critical Location Note:</strong> Many developers look in the global Project Settings cog ⚙️ at the top-left sidebar first—there is no domain list there.
-                            <p className="font-medium">The Authorized Domains database is located specifically inside the **Authentication** module page settings!</p>
-                          </div>
-                          <ol className="list-decimal pl-4 space-y-1.5 text-red-900 leading-normal text-[11px]">
-                            <li>Go to your project in the <a href="https://console.firebase.google.com" target="_blank" rel="noopener noreferrer" className="text-[#b52330] hover:underline font-extrabold">Firebase Console</a></li>
-                            <li>In the left sidebar menu, click on <strong>Authentication</strong></li>
-                            <li>At the top of the Authentication page, click on the <strong>Settings</strong> tab (located next to Users, Sign-in method, Templates)</li>
-                            <li>In the category column on the left-side of Settings, click on <strong>Authorized domains</strong></li>
-                            <li>Click the <strong>Add domain</strong> button</li>
-                            <li>Copy and paste your app's domain hostname: <code className="bg-red-100 px-1.5 py-0.5 rounded text-xs select-all font-mono font-black border border-red-200">{window.location.hostname}</code> (excluding https:// or trailing slash)</li>
-                            <li>Click <strong>Add</strong>! Now Google Sign-In will work instantly on this URL.</li>
-                          </ol>
-                        </div>
-                      ) : null}
+                <div className="max-w-[420px] mx-auto pt-10 pb-20 px-4 sm:px-0">
+                  <div className="bg-white rounded-3xl border border-slate-100 shadow-xl p-8 space-y-6 animate-fade-in">
+                    {/* Header */}
+                    <div className="text-center space-y-2">
+                      <span className="font-extrabold text-4xl text-[#b52330] lowercase tracking-tight select-none font-sans block">tambu</span>
+                      <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                        {isRegistering ? 'Create Your Account' : 'Welcome Back'}
+                      </h1>
+                      <p className="text-xs text-slate-500 max-w-[280px] mx-auto leading-relaxed">
+                        {isRegistering 
+                          ? 'Sign up to list or find rental rooms easily.' 
+                          : 'Sign in to manage your Tambu properties or bookings.'}
+                      </p>
                     </div>
-                  )}
 
-                  <div className="bg-white p-6 rounded-2xl border border-[#e4e2e2] shadow-sm space-y-6">
-                    {/* Role Toggles */}
+                    {/* Google Action */}
                     <div className="space-y-3">
-                      <label className="text-xs font-bold text-slate-800 block text-center uppercase tracking-wider text-[10px] font-mono">
-                        1. Choose Your Account Purpose
-                      </label>
-                      <div className="grid grid-cols-2 gap-2 select-none">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setRegRole(UserRole.SEEKER);
-                            setUserRole(UserRole.SEEKER);
-                          }}
-                          className={`p-4 rounded-xl text-xs font-bold text-center border-2 transition-all flex flex-col items-center gap-1.5 justify-center cursor-pointer ${
-                            (regRole === UserRole.SEEKER) 
-                              ? 'bg-rose-50/70 border-[#b52330] text-[#b52330] shadow-sm opacity-100' 
-                              : 'bg-white border-[#e4e2e2] text-slate-600 hover:bg-slate-50 opacity-80'
-                          }`}
-                        >
-                          <span className="text-lg">👤</span>
-                          <span className="font-extrabold">Looking to Rent</span>
-                          <span className="text-[10px] text-slate-500 font-normal">Student / Executive</span>
-                        </button>
-                        
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setRegRole(UserRole.OWNER);
-                            setUserRole(UserRole.OWNER);
-                          }}
-                          className={`p-4 rounded-xl text-xs font-bold text-center border-2 transition-all flex flex-col items-center gap-1.5 justify-center cursor-pointer ${
-                            (regRole === UserRole.OWNER) 
-                              ? 'bg-rose-50/70 border-[#b52330] text-[#b52330] shadow-sm opacity-100' 
-                              : 'bg-white border-[#e4e2e2] text-slate-600 hover:bg-slate-50 opacity-80'
-                          }`}
-                        >
-                          <span className="text-lg">🏡</span>
-                          <span className="font-extrabold">Looking to List</span>
-                          <span className="text-[10px] text-slate-500 font-normal">Landlord / Owner</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-slate-100 my-4"></div>
-
-                    {/* Secure Google Login Trigger Button */}
-                    <div className="space-y-2.5">
-                      <span className="text-xs font-bold text-slate-800 block text-center uppercase tracking-wider text-[10px] font-mono">
-                        2. Authenticate instantly
-                      </span>
                       <button
                         type="button"
                         onClick={handleGoogleLogin}
-                        className="w-full py-3.5 bg-slate-900 text-white hover:bg-slate-800 text-xs font-bold rounded-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                        className="w-full py-3 px-4 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 cursor-pointer border border-slate-200 shadow-sm"
                       >
-                        <svg className="w-4 h-4 shrink-0 bg-white rounded-full p-0.5" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 shrink-0 bg-white rounded-full" viewBox="0 0 24 24">
                           <path fill="#EA4335" d="M12 5.04c1.66 0 3.2.57 4.38 1.69l3.27-3.27C17.67 1.47 14.97 1 12 1 7.35 1 3.39 3.66 1.48 7.54l3.87 3C6.27 7.51 8.87 5.04 12 5.04z" />
                           <path fill="#4285F4" d="M23.45 12.3c0-.82-.07-1.6-.21-2.3H12v4.4h6.4c-.28 1.44-1.09 2.66-2.3 3.47l3.6 2.8c2.1-1.94 3.75-4.8 3.75-8.37z" />
                           <path fill="#FBBC05" d="M5.35 14.54c-.23-.69-.35-1.43-.35-2.2s.12-1.51.35-2.2L1.48 7.54C.54 9.4 0 11.48 0 13.66s.54 4.26 1.48 6.12l3.87-3.24z" />
                           <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.93l-3.6-2.8c-1.1.74-2.5 1.18-4.36 1.18-3.13 0-5.73-2.47-6.65-5.5l-3.87 3C3.39 20.34 7.35 23 12 23z" />
                         </svg>
-                        Continue with Google
+                        <span>Continue with Google</span>
                       </button>
                     </div>
-                  </div>
 
-                  {/* Informative Security/Requirement alert */}
-                  <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-4 flex gap-3 items-start text-[#573911] text-xs">
-                    <AlertCircle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
-                    <div className="space-y-1">
-                      <p className="font-extrabold text-amber-950">⚠️ Secure Registration Notice</p>
-                      <p className="text-[11px] leading-relaxed text-amber-900/90">
-                        To maintain secure identity verification on Tambu, <strong>all Seekers (Renters) and Listers (Landlords) are required to sign up and login exclusively using Google Authentication.</strong> Traditional email/password login is strictly restricted to authorized system administrators.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Traditional Admin Credentials Access */}
-                  <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                    <div className="space-y-1">
-                      <h4 className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5 uppercase tracking-wider font-mono">
-                        <Lock className="w-3.5 h-3.5 text-slate-600" />
-                        Tambu Admin Sign-In
-                      </h4>
-                      <p className="text-[11px] text-slate-500 leading-normal">
-                        Authorized staff can log into the service platform with system-registered credentials.
-                      </p>
+                    {/* Divider */}
+                    <div className="relative flex py-1 items-center">
+                      <div className="flex-grow border-t border-slate-100"></div>
+                      <span className="flex-shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or use email</span>
+                      <div className="flex-grow border-t border-slate-100"></div>
                     </div>
 
-                    <form onSubmit={handleLoginSubmit} className="space-y-3">
-                      <div className="space-y-1">
-                        <label htmlFor="admin-email" className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">
-                          Admin Email Address
-                        </label>
-                        <input
-                          id="admin-email"
-                          type="email"
-                          value={loginEmail}
-                          onChange={(e) => setLoginEmail(e.target.value)}
-                          placeholder="admin@company.com"
-                          className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-400 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
-                          required
-                        />
-                      </div>
+                    {authErrorMsg && (
+                      <div className="p-3.5 bg-red-50 border border-red-100 rounded-2xl space-y-3.5">
+                        <p className="text-[11px] text-[#b52330] leading-relaxed font-bold text-center">{authErrorMsg}</p>
+                        
+                        {/* Domain configuration assistance or skip option */}
+                        <div className="p-3 bg-white rounded-xl border border-red-100 text-[10px] text-[#5a403f] space-y-2">
+                          <p className="font-extrabold text-red-950">Bypass setup or test offline:</p>
+                          <p className="text-[9.5px] text-slate-500 leading-normal font-medium">
+                            If you want to skip or bypass live database setups, you can instantly log in with a fully simulated Sandbox profile right now!
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const name = isRegistering ? (regName || "Japhet Ndafi") : "Japhet Ndafi";
+                              const email = isRegistering ? (regEmail || "japhetndafi23@gmail.com") : "japhetndafi23@gmail.com";
+                              const phone = isRegistering ? (regPhone || "0977223344") : "0977223344";
+                              const role = isRegistering ? regRole : userRole;
+                              
+                              const simulatedProfile = {
+                                uid: 'sandbox_' + Math.random().toString(36).substring(2, 11),
+                                email: email,
+                                displayName: name,
+                                photoURL: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0',
+                              };
 
-                      <div className="space-y-1">
-                        <label htmlFor="admin-password" className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">
-                          Password
-                        </label>
-                        <input
-                          id="admin-password"
-                          type="password"
-                          value={loginPassword}
-                          onChange={(e) => setLoginPassword(e.target.value)}
-                          placeholder="Password"
-                          className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:ring-1 focus:ring-slate-400 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
-                          required
-                        />
-                      </div>
+                              setSimulatedUser(simulatedProfile);
+                              setIsLoggedIn(true);
+                              setUserName(simulatedProfile.displayName);
+                              setUserEmail(simulatedProfile.email);
+                              setUserPhone(phone);
+                              setUserRole(role);
+                              setTrialEndsAt(new Date(Date.now() + 9 * 24 * 3600 * 1000).toISOString());
+                              setIsSubscribed(false);
+                              
+                              // Save profile mock to localStorage fallbacks
+                              const localProfile = {
+                                userId: simulatedProfile.uid,
+                                name: simulatedProfile.displayName,
+                                email: simulatedProfile.email,
+                                phone: phone,
+                                role: role,
+                                savedIds: [],
+                                createdAt: new Date().toISOString(),
+                                trialEndsAt: new Date(Date.now() + 9 * 24 * 3600 * 1000).toISOString(),
+                                isSubscribed: false,
+                                subscriptionExpiresAt: null
+                              };
+                              localStorage.setItem(`tambu_profile_fallback_${simulatedProfile.uid}`, JSON.stringify(localProfile));
+                              
+                              triggerToast('Sandbox Account Activated Successfully!', 'success');
+                              navigateTo(role === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
+                            }}
+                            className="w-full py-2 bg-[#b52330] hover:bg-[#a01c27] text-white font-black text-[10px] rounded-lg shadow-sm transition-all cursor-pointer text-center"
+                          >
+                            🚀 Activate Sandbox Account (Skip Setup)
+                          </button>
+                        </div>
 
+                        {authErrorMsg.toLowerCase().includes('domain') || authErrorMsg.toLowerCase().includes('google') || authErrorMsg.toLowerCase().includes('oauth') || authErrorMsg.toLowerCase().includes('redirect') ? (
+                          <div className="p-2.5 bg-white rounded-lg border border-red-100 text-[9px] text-[#5a403f] space-y-1">
+                            <p className="font-bold text-red-950">How to authorize this domain for production Google login (Supabase):</p>
+                            <ol className="list-decimal pl-3 space-y-0.5 text-red-900">
+                              <li>Go to your Supabase Dashboard -&gt; Authentication -&gt; Providers</li>
+                              <li>Select Google and configure your Client ID & Secret</li>
+                              <li>Add this domain as an allowed Redirect URI: <code className="bg-red-50 px-1 py-0.5 rounded font-mono font-bold border border-red-150">{window.location.origin}</code></li>
+                            </ol>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+
+                    {/* Forms */}
+                    {!isRegistering ? (
+                      /* SIGN IN FORM */
+                      <form onSubmit={handleLoginSubmit} className="space-y-4">
+                        <div className="space-y-3.5">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                              Email Address
+                            </label>
+                            <input
+                              type="email"
+                              value={loginEmail}
+                              onChange={(e) => setLoginEmail(e.target.value)}
+                              placeholder="name@example.com"
+                              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-100 rounded-xl focus:bg-white focus:ring-1 focus:ring-slate-300 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between items-center mb-1">
+                              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                Password
+                              </label>
+                            </div>
+                            <input
+                              type="password"
+                              value={loginPassword}
+                              onChange={(e) => setLoginPassword(e.target.value)}
+                              placeholder="••••••••"
+                              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-100 rounded-xl focus:bg-white focus:ring-1 focus:ring-slate-300 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="w-full py-3 mt-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                        >
+                          <LogIn className="w-3.5 h-3.5" />
+                          <span>Sign In</span>
+                        </button>
+                      </form>
+                    ) : (
+                      /* SIGN UP FORM */
+                      <form onSubmit={handleRegisterSubmit} className="space-y-4">
+                        {/* Elegant Selector for Account Purpose */}
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block text-center">
+                            I want to:
+                          </label>
+                          <div className="grid grid-cols-2 gap-1.5 bg-slate-50 p-1 rounded-xl border border-slate-100 select-none">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRegRole(UserRole.SEEKER);
+                                setUserRole(UserRole.SEEKER);
+                              }}
+                              className={`py-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer text-center ${
+                                regRole === UserRole.SEEKER
+                                  ? 'bg-white text-[#b52330] shadow-sm font-black'
+                                  : 'text-slate-500 hover:text-slate-900'
+                              }`}
+                            >
+                              Rent a Room
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRegRole(UserRole.OWNER);
+                                setUserRole(UserRole.OWNER);
+                              }}
+                              className={`py-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer text-center ${
+                                regRole === UserRole.OWNER
+                                  ? 'bg-white text-[#b52330] shadow-sm font-black'
+                                  : 'text-slate-500 hover:text-slate-900'
+                              }`}
+                            >
+                              List a Room
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                              Full Name
+                            </label>
+                            <input
+                              type="text"
+                              value={regName}
+                              onChange={(e) => setRegName(e.target.value)}
+                              placeholder="e.g. Chanda Mulenga"
+                              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-100 rounded-xl focus:bg-white focus:ring-1 focus:ring-slate-300 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                              Phone Number
+                            </label>
+                            <input
+                              type="text"
+                              value={regPhone}
+                              onChange={(e) => setRegPhone(e.target.value)}
+                              placeholder="e.g. +260977112233"
+                              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-100 rounded-xl focus:bg-white focus:ring-1 focus:ring-slate-300 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                              Email Address
+                            </label>
+                            <input
+                              type="email"
+                              value={regEmail}
+                              onChange={(e) => setRegEmail(e.target.value)}
+                              placeholder="you@example.com"
+                              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-100 rounded-xl focus:bg-white focus:ring-1 focus:ring-slate-300 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                              Password
+                            </label>
+                            <input
+                              type="password"
+                              value={regPassword}
+                              onChange={(e) => setRegPassword(e.target.value)}
+                              placeholder="At least 6 characters"
+                              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-100 rounded-xl focus:bg-white focus:ring-1 focus:ring-slate-300 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="w-full py-3 mt-2 bg-[#b52330] hover:bg-[#a01c27] text-white text-xs font-bold rounded-xl active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm font-black"
+                        >
+                          Create Account
+                        </button>
+                      </form>
+                    )}
+
+                    {/* Mode Switcher Footer */}
+                    <div className="text-center pt-2 space-y-3.5">
                       <button
-                        type="submit"
-                        className="w-full py-2.5 mt-1 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                        type="button"
+                        onClick={() => {
+                          setIsRegistering(!isRegistering);
+                          setAuthErrorMsg('');
+                        }}
+                        className="text-xs text-[#b52330] hover:underline font-bold transition-all cursor-pointer"
                       >
-                        <LogIn className="w-3.5 h-3.5" />
-                        Access Admin Console
+                        {isRegistering 
+                          ? 'Already have an account? Sign In' 
+                          : "Don't have an account? Sign Up"}
                       </button>
-                    </form>
+
+                      <div className="border-t border-slate-100 pt-3.5">
+                        <button
+                          type="button"
+                          onClick={() => setShowDemoSandbox(!showDemoSandbox)}
+                          className="text-[10px] text-slate-400 hover:text-slate-600 font-extrabold uppercase tracking-wider flex items-center justify-center gap-1 mx-auto cursor-pointer"
+                        >
+                          <span>🧪 Toggle Demo/Sandbox Tools</span>
+                          <span className="text-[8px]">{showDemoSandbox ? '▲' : '▼'}</span>
+                        </button>
+
+                        {showDemoSandbox && (
+                          <div className="mt-3 bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2.5 text-left animate-fade-in">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Simulated Sandboxes</span>
+                              <span className="px-2 py-0.5 text-[8px] font-bold bg-green-50 text-green-600 rounded-full border border-green-100 uppercase tracking-wider">Instant Access</span>
+                            </div>
+                            <p className="text-[9.5px] leading-relaxed text-slate-400 font-medium">
+                              For quick testing without creating real database accounts, launch an offline simulated sandbox profile instantly.
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleDemoLogin(UserRole.OWNER)}
+                                className="py-2.5 px-3 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-bold rounded-xl active:scale-[0.98] border border-slate-200 shadow-xs transition-all flex flex-col items-center justify-center gap-1 cursor-pointer"
+                              >
+                                <span className="text-sm">🏠</span>
+                                <span className="font-bold">Demo Landlord</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDemoLogin(UserRole.SEEKER)}
+                                className="py-2.5 px-3 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-bold rounded-xl active:scale-[0.98] border border-slate-200 shadow-xs transition-all flex flex-col items-center justify-center gap-1 cursor-pointer"
+                              >
+                                <span className="text-sm">🔍</span>
+                                <span className="font-bold">Demo Seeker</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );

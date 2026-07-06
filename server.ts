@@ -586,6 +586,101 @@ app.get('/flutterwave-mock-payment', (req, res) => {
 });
 
 
+// Handle secure Supabase Google OAuth Callback in standard Popups (sandboxed compliance)
+app.get(['/auth/callback', '/auth/callback/'], (req, res) => {
+  let rawUrl = (process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
+  let rawAnonKey = (process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
+
+  // Programmatically sanitize and normalize Supabase URLs (e.g. if the user pasted a deep link, JWKS endpoint, or had trailing slashes/paths)
+  if (rawUrl) {
+    const supabaseCoMatch = rawUrl.match(/^(https?:\/\/[a-zA-Z0-9\-]+\.supabase\.[a-z]+)/i);
+    if (supabaseCoMatch) {
+      rawUrl = supabaseCoMatch[1];
+    } else {
+      if (rawUrl.endsWith('/')) {
+        rawUrl = rawUrl.slice(0, -1);
+      }
+      if (rawUrl.endsWith('/rest/v1')) {
+        rawUrl = rawUrl.substring(0, rawUrl.length - 8);
+      } else if (rawUrl.endsWith('/rest/v1/')) {
+        rawUrl = rawUrl.substring(0, rawUrl.length - 9);
+      }
+    }
+  }
+
+  const supabaseUrl = rawUrl;
+  const supabaseAnonKey = rawAnonKey;
+
+  res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Authenticating with Google...</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; color: #1e293b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+    .card { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 100%; border: 1px solid #e2e8f0; }
+    .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #f5a623; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 1.5rem auto; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    h2 { margin: 0 0 0.5rem 0; font-size: 1.25rem; font-weight: 700; color: #0f172a; }
+    p { margin: 0; font-size: 0.875rem; color: #64748b; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <h2>Authenticating...</h2>
+    <p>We are establishing your secure Tambu session. This window will close automatically once complete.</p>
+  </div>
+  <script>
+    const supabaseUrl = "${supabaseUrl}";
+    const supabaseAnonKey = "${supabaseAnonKey}";
+    
+    if (supabaseUrl && supabaseAnonKey) {
+      try {
+        const { createClient } = supabase;
+        const client = createClient(supabaseUrl, supabaseAnonKey);
+        
+        // Wait a small moment for the auth SDK to process the callback, parse code/tokens, and persist to localStorage
+        setTimeout(async () => {
+          try {
+            const { data: { session } } = await client.auth.getSession();
+            if (session) {
+              console.log("Session loaded successfully in popup.");
+            }
+          } catch (e) {
+            console.error("Session verification failed inside popup:", e);
+          }
+          
+          if (window.opener) {
+            window.opener.postMessage({ type: 'TAMBU_AUTH_SUCCESS' }, '*');
+          } else {
+            console.warn("Popup parent window (window.opener) is missing.");
+          }
+          window.close();
+        }, 1200);
+      } catch (e) {
+        console.error("Popup library initialization failed:", e);
+        if (window.opener) {
+          window.opener.postMessage({ type: 'TAMBU_AUTH_ERROR', message: String(e) }, '*');
+        }
+        setTimeout(() => window.close(), 3000);
+      }
+    } else {
+      console.error("Missing Supabase configuration in callback.");
+      if (window.opener) {
+        window.opener.postMessage({ type: 'TAMBU_AUTH_ERROR', message: 'Missing client keys' }, '*');
+      }
+      setTimeout(() => window.close(), 3000);
+    }
+  </script>
+</body>
+</html>
+  `);
+});
+
+
 // Hook in Vite Server or static serving files
 async function startServer() {
   // Mount Vite development server when not running in production Node environment

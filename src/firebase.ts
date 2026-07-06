@@ -1,29 +1,287 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { 
   getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, 
   deleteDoc, collection, query, where, getDocFromServer, onSnapshot
 } from 'firebase/firestore';
+import { 
+  getAuth, 
+  signInWithEmailAndPassword as fbSignInWithEmailAndPassword,
+  createUserWithEmailAndPassword as fbCreateUserWithEmailAndPassword,
+  signOut as fbSignOut,
+  onAuthStateChanged as fbOnAuthStateChanged,
+  signInWithPopup,
+  GoogleAuthProvider
+} from 'firebase/auth';
 import firebaseConfig from '../firebase-applet-config.json';
 import { Property, Activity, SearchHistory, BillingRecord, UserRole, RentPayment, SupportMessage } from './types';
 import { INITIAL_PROPERTIES } from './data';
+import { getSupabaseClient, updatePropertyInSupabase, deletePropertyFromSupabase, isSupabaseConfigured } from './supabase';
+export { getSupabaseClient };
 
 // Support Vercel deployment: load from environment variables first, fall back to development configuration
 const config = {
-  apiKey: (import.meta.env.VITE_FIREBASE_API_KEY as string) || firebaseConfig.apiKey,
-  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string) || firebaseConfig.authDomain,
-  projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID as string) || firebaseConfig.projectId,
-  storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string) || firebaseConfig.storageBucket,
-  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string) || firebaseConfig.messagingSenderId,
-  appId: (import.meta.env.VITE_FIREBASE_APP_ID as string) || firebaseConfig.appId,
-  measurementId: (import.meta.env.VITE_FIREBASE_MEASUREMENT_ID as string) || firebaseConfig.measurementId,
+  apiKey: ((import.meta as any).env.VITE_FIREBASE_API_KEY as string) || firebaseConfig.apiKey,
+  authDomain: ((import.meta as any).env.VITE_FIREBASE_AUTH_DOMAIN as string) || firebaseConfig.authDomain,
+  projectId: ((import.meta as any).env.VITE_FIREBASE_PROJECT_ID as string) || firebaseConfig.projectId,
+  storageBucket: ((import.meta as any).env.VITE_FIREBASE_STORAGE_BUCKET as string) || firebaseConfig.storageBucket,
+  messagingSenderId: ((import.meta as any).env.VITE_FIREBASE_MESSAGING_SENDER_ID as string) || firebaseConfig.messagingSenderId,
+  appId: ((import.meta as any).env.VITE_FIREBASE_APP_ID as string) || firebaseConfig.appId,
+  measurementId: ((import.meta as any).env.VITE_FIREBASE_MEASUREMENT_ID as string) || firebaseConfig.measurementId,
 };
 
-const databaseId = (import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID as string) || firebaseConfig.firestoreDatabaseId;
+const databaseId = ((import.meta as any).env.VITE_FIREBASE_FIRESTORE_DATABASE_ID as string) || firebaseConfig.firestoreDatabaseId;
 
 const app = initializeApp(config);
 export const db = databaseId ? getFirestore(app, databaseId) : getFirestore(app); /* CRITICAL: The app will break without this line */
-export const auth = getAuth();
+export const firebaseAuth = getAuth(app);
+
+// Track local Supabase auth user synchronously for App.tsx access
+let activeSupabaseUser: any = null;
+
+// Try to load cached demo user if not configured
+try {
+  const cachedDemo = localStorage.getItem('supabase_demo_user');
+  if (cachedDemo) {
+    activeSupabaseUser = JSON.parse(cachedDemo);
+  }
+} catch (e) {
+  // Safe fail
+}
+
+const supabase = getSupabaseClient();
+if (supabase) {
+  // Fetch initial user synchronously on module load
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) {
+      activeSupabaseUser = user;
+    }
+  });
+
+  // Keep user sync'd during session lifecycle
+  supabase.auth.onAuthStateChange((event, session) => {
+    activeSupabaseUser = session?.user || null;
+  });
+}
+
+// Normalized Supabase/Firebase auth client compatibility wrapper
+export const auth: any = {
+  get currentUser() {
+    const fbUser = firebaseAuth.currentUser;
+    if (fbUser) {
+      return {
+        uid: fbUser.uid,
+        id: fbUser.uid,
+        email: fbUser.email,
+        displayName: fbUser.displayName || fbUser.email?.split('@')[0],
+        phone: fbUser.phoneNumber || '',
+        photoURL: fbUser.photoURL || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0',
+      };
+    }
+    if (!activeSupabaseUser) return null;
+    return {
+      uid: activeSupabaseUser.id || activeSupabaseUser.uid,
+      id: activeSupabaseUser.id || activeSupabaseUser.uid,
+      email: activeSupabaseUser.email,
+      displayName: activeSupabaseUser.displayName || activeSupabaseUser.user_metadata?.full_name || activeSupabaseUser.user_metadata?.display_name || activeSupabaseUser.email?.split('@')[0],
+      phone: activeSupabaseUser.phone || activeSupabaseUser.user_metadata?.phone || '',
+      photoURL: activeSupabaseUser.photoURL || activeSupabaseUser.user_metadata?.avatar_url || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0',
+    };
+  }
+};
+
+// Compatible onAuthStateChanged replacement pointing to both Firebase and Supabase Auth
+export function onAuthStateChanged(authInstance: any, callback: (user: any) => void) {
+  // 1. Listen to real Firebase Auth changes
+  const fbUnsubscribe = fbOnAuthStateChanged(firebaseAuth, async (user) => {
+    if (user) {
+      const normalizedUser = {
+        uid: user.uid,
+        id: user.uid,
+        email: user.email,
+        displayName: user.displayName || user.email?.split('@')[0],
+        phone: user.phoneNumber || '',
+        photoURL: user.photoURL || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0',
+      };
+      callback(normalizedUser);
+    } else {
+      // If no Firebase user, check if we have an active Supabase user
+      const client = getSupabaseClient();
+      if (client) {
+        try {
+          const { data: { user: sbUser } } = await client.auth.getUser();
+          if (sbUser) {
+            const normalizedUser = {
+              uid: sbUser.id,
+              id: sbUser.id,
+              email: sbUser.email,
+              displayName: sbUser.user_metadata?.full_name || sbUser.user_metadata?.display_name || sbUser.email?.split('@')[0],
+              phone: sbUser.user_metadata?.phone || '',
+              photoURL: sbUser.user_metadata?.avatar_url || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0',
+            };
+            activeSupabaseUser = sbUser;
+            callback(normalizedUser);
+            return;
+          }
+        } catch (e) {}
+      }
+      
+      // Fallback to local storage mock user
+      let initialUser = null;
+      try {
+        const cachedDemo = localStorage.getItem('supabase_demo_user');
+        if (cachedDemo) {
+          const parsed = JSON.parse(cachedDemo);
+          initialUser = {
+            uid: parsed.id || parsed.uid,
+            id: parsed.id || parsed.uid,
+            email: parsed.email,
+            displayName: parsed.displayName || parsed.email?.split('@')[0],
+            phone: parsed.phone || '',
+            photoURL: parsed.photoURL || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0',
+          };
+        }
+      } catch (e) {}
+      callback(initialUser);
+    }
+  });
+
+  // 2. Listen to Supabase Auth changes if configured
+  let sbUnsubscribe = () => {};
+  const client = getSupabaseClient();
+  if (client) {
+    const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+      const user = session?.user || null;
+      activeSupabaseUser = user;
+      if (user) {
+        const normalizedUser = {
+          uid: user.id,
+          id: user.id,
+          email: user.email,
+          displayName: user.user_metadata?.full_name || user.user_metadata?.display_name || user.email?.split('@')[0],
+          phone: user.user_metadata?.phone || '',
+          photoURL: user.user_metadata?.avatar_url || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0',
+        };
+        callback(normalizedUser);
+      } else {
+        // Only trigger null if Firebase is also null
+        if (!firebaseAuth.currentUser) {
+          callback(null);
+        }
+      }
+    });
+    sbUnsubscribe = () => subscription.unsubscribe();
+  }
+
+  // 3. Listen to mock auth changes
+  const handleMockAuth = (e: any) => {
+    callback(e.detail);
+  };
+  window.addEventListener('mock_auth_change', handleMockAuth);
+
+  return () => {
+    fbUnsubscribe();
+    sbUnsubscribe();
+    window.removeEventListener('mock_auth_change', handleMockAuth);
+  };
+}
+
+// Compatible signInWithEmailAndPassword replacement pointing to Firebase Auth with Supabase fallback
+export async function signInWithEmailAndPassword(authInstance: any, email: string, password: string) {
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+      if (data.user) {
+        return {
+          user: {
+            uid: data.user.id,
+            id: data.user.id,
+            email: data.user.email,
+            displayName: data.user.user_metadata?.full_name || data.user.user_metadata?.display_name || email.split('@')[0],
+            phone: data.user.user_metadata?.phone || '',
+            photoURL: data.user.user_metadata?.avatar_url || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0',
+          }
+        };
+      }
+    } catch (err: any) {
+      console.warn("Supabase Auth signIn failed, throwing:", err);
+      throw err;
+    }
+  }
+
+  try {
+    const credential = await fbSignInWithEmailAndPassword(firebaseAuth, email, password);
+    return {
+      user: {
+        uid: credential.user.uid,
+        id: credential.user.uid,
+        email: credential.user.email,
+        displayName: credential.user.displayName || email.split('@')[0],
+        phone: credential.user.phoneNumber || '',
+        photoURL: credential.user.photoURL || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0',
+      }
+    };
+  } catch (err: any) {
+    console.warn("Firebase Auth signIn failed:", err);
+    throw err;
+  }
+}
+
+// Compatible createUserWithEmailAndPassword replacement pointing to Firebase Auth with Supabase fallback
+export async function createUserWithEmailAndPassword(authInstance: any, email: string, password: string) {
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+      if (data.user) {
+        return {
+          user: {
+            uid: data.user.id,
+            id: data.user.id,
+            email: data.user.email,
+            displayName: data.user.user_metadata?.full_name || data.user.user_metadata?.display_name || email.split('@')[0],
+            phone: data.user.user_metadata?.phone || '',
+            photoURL: data.user.user_metadata?.avatar_url || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0',
+          }
+        };
+      }
+    } catch (err: any) {
+      console.warn("Supabase Auth signUp failed, throwing:", err);
+      throw err;
+    }
+  }
+
+  try {
+    const credential = await fbCreateUserWithEmailAndPassword(firebaseAuth, email, password);
+    return {
+      user: {
+        uid: credential.user.uid,
+        id: credential.user.uid,
+        email: credential.user.email,
+        displayName: credential.user.displayName || email.split('@')[0],
+        phone: credential.user.phoneNumber || '',
+        photoURL: credential.user.photoURL || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0',
+      }
+    };
+  } catch (err: any) {
+    console.warn("Firebase Auth signUp failed:", err);
+    throw err;
+  }
+}
 
 // --- TEST CONNECTION AND AUTO-SEEDS MANDATED BY SKILLS ---
 async function testConnection() {
@@ -115,23 +373,63 @@ export async function seedInitialPropertiesIfEmpty() {
 
 // --- AUTHENTICATION PROVIDERS HOOKS ---
 export async function loginWithGoogle() {
-  const provider = new GoogleAuthProvider();
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          skipBrowserRedirect: true,
+        }
+      });
+      if (error) {
+        console.error('Google Sign In Error:', error);
+        throw error;
+      }
+      return data;
+    } catch (e) {
+      console.warn("Supabase Google Sign-In failed, fallback to Firebase:", e);
+    }
+  }
+
+  // Try real Firebase Google Sign-In popup
   try {
-    const result = await signInWithPopup(auth, provider);
-    return result.user;
-  } catch (error) {
-    console.error('Google Sign In Error:', error);
-    throw error;
+    const provider = new GoogleAuthProvider();
+    const credential = await signInWithPopup(firebaseAuth, provider);
+    return {
+      user: {
+        uid: credential.user.uid,
+        id: credential.user.uid,
+        email: credential.user.email,
+        displayName: credential.user.displayName || credential.user.email?.split('@')[0],
+        phone: credential.user.phoneNumber || '',
+        photoURL: credential.user.photoURL || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0',
+      }
+    };
+  } catch (err: any) {
+    console.warn("Firebase Google Sign-In failed:", err);
+    throw err;
   }
 }
 
 export async function logoutUser() {
   try {
-    await signOut(auth);
-  } catch (error) {
-    console.error('Logout error:', error);
-    throw error;
+    await fbSignOut(firebaseAuth);
+  } catch (e) {
+    console.warn("Firebase signout error:", e);
   }
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      await client.auth.signOut();
+    } catch (e) {
+      console.error('Supabase Logout error:', e);
+    }
+  }
+  localStorage.removeItem('supabase_demo_user');
+  activeSupabaseUser = null;
+  window.dispatchEvent(new CustomEvent('mock_auth_change', { detail: null }));
 }
 
 // --- USER PROFILE HOOKS ---
@@ -149,8 +447,9 @@ export interface FirebaseUserProfile {
 }
 
 export async function getUserProfile(uid: string): Promise<FirebaseUserProfile | null> {
-  if (uid.startsWith('demo_')) {
-    const isOwner = uid.includes('owner');
+  if (!uid) return null;
+  if (uid === 'demo_owner123' || uid === 'demo_seeker123' || uid.startsWith('demo_click_') || uid === 'admin_tambu') {
+    const isOwner = uid.includes('owner') || uid === 'admin_tambu';
     // For demo/simulated logins: make a default 9-day trial countdown
     const createdAtDate = new Date();
     createdAtDate.setDate(createdAtDate.getDate() - 1); // signed up 1 day ago
@@ -159,17 +458,56 @@ export async function getUserProfile(uid: string): Promise<FirebaseUserProfile |
 
     return {
       userId: uid,
-      name: isOwner ? 'Mwamba Chileshe (Demo Owner)' : 'Bwalya Mulenga (Demo Seeker)',
-      email: isOwner ? 'demo-owner@tambu.co.zm' : 'demo-seeker@tambu.co.zm',
-      phone: isOwner ? '0977223344' : '0966554433',
+      name: uid === 'admin_tambu' ? 'Tambu System Administrator' : (isOwner ? 'Mwamba Chileshe (Demo Owner)' : 'Bwalya Mulenga (Demo Seeker)'),
+      email: uid === 'admin_tambu' ? 'admin@tambu.com' : (isOwner ? 'demo-owner@tambu.co.zm' : 'demo-seeker@tambu.co.zm'),
+      phone: uid === 'admin_tambu' ? '+260 977 112233' : (isOwner ? '0977223344' : '0966554433'),
       role: isOwner ? UserRole.OWNER : UserRole.SEEKER,
       savedIds: [],
       createdAt: createdAtDate.toISOString(),
       trialEndsAt: trialEndsDate.toISOString(),
-      isSubscribed: false,
+      isSubscribed: uid === 'admin_tambu' ? true : false,
       subscriptionExpiresAt: null
     };
   }
+
+  // 1. Try Supabase profiles table
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('profiles')
+        .select('*')
+        .eq('user_id', uid)
+        .maybeSingle();
+      if (!error && data) {
+        return {
+          userId: data.user_id,
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          role: data.role as UserRole,
+          savedIds: data.saved_ids || [],
+          createdAt: data.created_at,
+          trialEndsAt: data.trial_ends_at,
+          isSubscribed: !!data.is_subscribed,
+          subscriptionExpiresAt: data.subscription_expires_at,
+        };
+      }
+    } catch (e) {
+      console.warn("Supabase profile get failed:", e);
+    }
+  }
+
+  // 2. Try LocalStorage fallback (crucial for local/hybrid setups when DB lacks schema or auth rules block read)
+  try {
+    const cachedFallback = localStorage.getItem(`tambu_profile_fallback_${uid}`);
+    if (cachedFallback) {
+      return JSON.parse(cachedFallback);
+    }
+  } catch (e) {
+    console.error("Failed to read profile fallback from LocalStorage:", e);
+  }
+
   const path = `users/${uid}`;
   try {
     const docSnap = await getDoc(doc(db, 'users', uid));
@@ -188,6 +526,41 @@ export async function saveUserProfile(profile: FirebaseUserProfile): Promise<voi
     console.log('Simulated profile saved:', profile);
     return;
   }
+
+  // 1. Try Supabase upsert
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const payload = {
+        user_id: profile.userId,
+        name: profile.name,
+        email: profile.email,
+        phone: profile.phone || '0977223344',
+        role: profile.role,
+        saved_ids: profile.savedIds || [],
+        created_at: profile.createdAt || new Date().toISOString(),
+        trial_ends_at: profile.trialEndsAt || null,
+        is_subscribed: !!profile.isSubscribed,
+        subscription_expires_at: profile.subscriptionExpiresAt || null,
+      };
+      const { error } = await client
+        .from('profiles')
+        .upsert([payload]);
+      if (error) {
+        console.warn("Supabase profile save failed:", error.message);
+      }
+    } catch (e) {
+      console.warn("Supabase profile save failed:", e);
+    }
+  }
+
+  // 2. Always persist a local copy in LocalStorage as a highly reliable fallback
+  try {
+    localStorage.setItem(`tambu_profile_fallback_${profile.userId}`, JSON.stringify(profile));
+  } catch (e) {
+    console.error("Local storage fallback write failed:", e);
+  }
+
   const path = `users/${profile.userId}`;
   try {
     const profileToSave: any = {
@@ -320,7 +693,7 @@ export async function getRentPaymentsForRenter(renterId: string): Promise<RentPa
 }
 
 export async function updateSavedProperties(uid: string, savedIds: string[]): Promise<void> {
-  if (uid.startsWith('demo_') || uid === 'admin_tambu') {
+  if (!uid || uid.startsWith('demo_') || uid === 'admin_tambu') {
     console.log('Simulated saved properties updated:', savedIds);
     return;
   }
@@ -385,6 +758,11 @@ export async function deletePropertyListing(propertyId: string): Promise<void> {
   const uid = auth.currentUser?.uid;
   const path = `properties/${propertyId}`;
   try {
+    await deletePropertyFromSupabase(propertyId);
+  } catch (err) {
+    console.warn('Supabase delete bypassed or failed:', err);
+  }
+  try {
     await deleteDoc(doc(db, 'properties', propertyId));
     console.log('Property deleted from Firestore successfully:', propertyId);
   } catch (error) {
@@ -415,6 +793,11 @@ export async function updatePropertyListing(propertyId: string, fields: Partial<
   }
   const path = `properties/${propertyId}`;
   try {
+    await updatePropertyInSupabase(propertyId, fields);
+  } catch (err) {
+    console.warn('Supabase update bypassed or failed:', err);
+  }
+  try {
     await updateDoc(doc(db, 'properties', propertyId), fields);
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
@@ -423,7 +806,7 @@ export async function updatePropertyListing(propertyId: string, fields: Partial<
 
 // --- SEARCH HISTORY CRUD ---
 export async function addSearchHistory(uid: string, search: SearchHistory): Promise<void> {
-  if (uid.startsWith('demo_') || uid === 'admin_tambu') {
+  if (!uid || uid.startsWith('demo_') || uid === 'admin_tambu') {
     console.log('Simulated search history added:', search);
     return;
   }
@@ -440,7 +823,7 @@ export async function addSearchHistory(uid: string, search: SearchHistory): Prom
 }
 
 export async function getSearchHistory(uid: string): Promise<SearchHistory[]> {
-  if (uid.startsWith('demo_')) {
+  if (!uid || uid.startsWith('demo_')) {
     return [];
   }
   const path = `users/${uid}/searches`;
@@ -459,7 +842,7 @@ export async function getSearchHistory(uid: string): Promise<SearchHistory[]> {
 
 // --- BILLING RECORD CRUD ---
 export async function addBillingRecord(uid: string, record: BillingRecord): Promise<void> {
-  if (uid.startsWith('demo_') || uid === 'admin_tambu') {
+  if (!uid || uid.startsWith('demo_') || uid === 'admin_tambu') {
     console.log('Simulated billing record added:', record);
     return;
   }
@@ -479,7 +862,7 @@ export async function addBillingRecord(uid: string, record: BillingRecord): Prom
 }
 
 export async function getBillingRecords(uid: string): Promise<BillingRecord[]> {
-  if (uid.startsWith('demo_')) {
+  if (!uid || uid.startsWith('demo_')) {
     return [];
   }
   const path = `users/${uid}/billing_records`;
