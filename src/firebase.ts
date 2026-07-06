@@ -448,8 +448,18 @@ export interface FirebaseUserProfile {
 
 export async function getUserProfile(uid: string): Promise<FirebaseUserProfile | null> {
   if (!uid) return null;
-  if (uid === 'demo_owner123' || uid === 'demo_seeker123' || uid.startsWith('demo_click_') || uid === 'admin_tambu') {
-    const isOwner = uid.includes('owner') || uid === 'admin_tambu';
+  if (uid.startsWith('sandbox_') || uid.startsWith('demo_') || uid === 'admin_tambu') {
+    // Attempt to load from LocalStorage first (essential for sandbox / offline mode custom profiles)
+    try {
+      const cachedFallback = localStorage.getItem(`tambu_profile_fallback_${uid}`);
+      if (cachedFallback) {
+        return JSON.parse(cachedFallback);
+      }
+    } catch (e) {
+      console.error("Failed to read profile fallback from LocalStorage:", e);
+    }
+
+    const isOwner = uid.includes('owner') || uid === 'admin_tambu' || uid.startsWith('sandbox_');
     // For demo/simulated logins: make a default 9-day trial countdown
     const createdAtDate = new Date();
     createdAtDate.setDate(createdAtDate.getDate() - 1); // signed up 1 day ago
@@ -522,8 +532,13 @@ export async function getUserProfile(uid: string): Promise<FirebaseUserProfile |
 }
 
 export async function saveUserProfile(profile: FirebaseUserProfile): Promise<void> {
-  if (profile.userId.startsWith('demo_') || profile.userId === 'admin_tambu') {
+  if (profile.userId.startsWith('demo_') || profile.userId.startsWith('sandbox_') || profile.userId === 'admin_tambu') {
     console.log('Simulated profile saved:', profile);
+    try {
+      localStorage.setItem(`tambu_profile_fallback_${profile.userId}`, JSON.stringify(profile));
+    } catch (e) {
+      console.error("Local storage fallback write failed:", e);
+    }
     return;
   }
 
@@ -585,7 +600,7 @@ export async function saveUserProfile(profile: FirebaseUserProfile): Promise<voi
 
 // --- RENT PAYMENTS SECURE LOGS HOOKS ---
 export async function addRentPayment(payment: RentPayment): Promise<void> {
-  if (payment.renterId.startsWith('demo_') || payment.ownerId.startsWith('demo_') || payment.renterId === 'admin_tambu' || payment.ownerId === 'admin_tambu') {
+  if (payment.renterId.startsWith('demo_') || payment.ownerId.startsWith('demo_') || payment.renterId.startsWith('sandbox_') || payment.ownerId.startsWith('sandbox_') || payment.renterId === 'admin_tambu' || payment.ownerId === 'admin_tambu') {
     console.log('Simulated rent payment logged:', payment);
     // Persist mock locally
     const cacheKey = 'tambu_local_rent_payments';
@@ -693,7 +708,7 @@ export async function getRentPaymentsForRenter(renterId: string): Promise<RentPa
 }
 
 export async function updateSavedProperties(uid: string, savedIds: string[]): Promise<void> {
-  if (!uid || uid.startsWith('demo_') || uid === 'admin_tambu') {
+  if (!uid || uid.startsWith('demo_') || uid.startsWith('sandbox_') || uid === 'admin_tambu') {
     console.log('Simulated saved properties updated:', savedIds);
     return;
   }
@@ -707,7 +722,7 @@ export async function updateSavedProperties(uid: string, savedIds: string[]): Pr
 
 // --- PROPERTIES CRUD HOOKS ---
 export async function createPropertyListing(property: Property): Promise<void> {
-  if (property.ownerId.startsWith('demo_') || property.ownerId === 'admin_tambu') {
+  if (property.ownerId.startsWith('demo_') || property.ownerId.startsWith('sandbox_') || property.ownerId === 'admin_tambu') {
     console.log('Simulated property created:', property);
     const cacheKey = 'tambu_local_properties';
     const cached = localStorage.getItem(cacheKey);
@@ -768,7 +783,7 @@ export async function deletePropertyListing(propertyId: string): Promise<void> {
   } catch (error) {
     console.warn('Firestore delete failed or offline fallback, handled gracefully:', error);
     // If they are a verified real login and not simulated, propagate the error context for audit traces
-    if (uid && !uid.startsWith('demo_') && uid !== 'admin_tambu') {
+    if (uid && !uid.startsWith('demo_') && !uid.startsWith('sandbox_') && uid !== 'admin_tambu') {
       try {
         handleFirestoreError(error, OperationType.DELETE, path);
       } catch (_) {
@@ -780,7 +795,7 @@ export async function deletePropertyListing(propertyId: string): Promise<void> {
 
 export async function updatePropertyListing(propertyId: string, fields: Partial<Property>): Promise<void> {
   const uid = auth.currentUser?.uid;
-  if (propertyId.startsWith('demo_') || !uid || uid.startsWith('demo_') || uid === 'admin_tambu') {
+  if (propertyId.startsWith('demo_') || !uid || uid.startsWith('demo_') || uid.startsWith('sandbox_') || uid === 'admin_tambu') {
     console.log('Simulated property updated:', propertyId, fields);
     const cacheKey = 'tambu_local_properties';
     const cached = localStorage.getItem(cacheKey);
@@ -806,7 +821,7 @@ export async function updatePropertyListing(propertyId: string, fields: Partial<
 
 // --- SEARCH HISTORY CRUD ---
 export async function addSearchHistory(uid: string, search: SearchHistory): Promise<void> {
-  if (!uid || uid.startsWith('demo_') || uid === 'admin_tambu') {
+  if (!uid || uid.startsWith('demo_') || uid.startsWith('sandbox_') || uid === 'admin_tambu') {
     console.log('Simulated search history added:', search);
     return;
   }
@@ -823,7 +838,7 @@ export async function addSearchHistory(uid: string, search: SearchHistory): Prom
 }
 
 export async function getSearchHistory(uid: string): Promise<SearchHistory[]> {
-  if (!uid || uid.startsWith('demo_')) {
+  if (!uid || uid.startsWith('demo_') || uid.startsWith('sandbox_')) {
     return [];
   }
   const path = `users/${uid}/searches`;
@@ -842,7 +857,7 @@ export async function getSearchHistory(uid: string): Promise<SearchHistory[]> {
 
 // --- BILLING RECORD CRUD ---
 export async function addBillingRecord(uid: string, record: BillingRecord): Promise<void> {
-  if (!uid || uid.startsWith('demo_') || uid === 'admin_tambu') {
+  if (!uid || uid.startsWith('demo_') || uid.startsWith('sandbox_') || uid === 'admin_tambu') {
     console.log('Simulated billing record added:', record);
     return;
   }
@@ -862,7 +877,7 @@ export async function addBillingRecord(uid: string, record: BillingRecord): Prom
 }
 
 export async function getBillingRecords(uid: string): Promise<BillingRecord[]> {
-  if (!uid || uid.startsWith('demo_')) {
+  if (!uid || uid.startsWith('demo_') || uid.startsWith('sandbox_')) {
     return [];
   }
   const path = `users/${uid}/billing_records`;
@@ -882,7 +897,7 @@ export async function getBillingRecords(uid: string): Promise<BillingRecord[]> {
 // --- SUPPORT MESSAGES (CONTACT US) ---
 export async function createSupportMessage(message: SupportMessage): Promise<void> {
   const uid = auth.currentUser?.uid;
-  if (!uid || uid.startsWith('demo_') || uid === 'admin_tambu') {
+  if (!uid || uid.startsWith('demo_') || uid.startsWith('sandbox_') || uid === 'admin_tambu') {
     console.log('Simulated support message created:', message);
     const cacheKey = 'tambu_local_support_messages';
     const cached = localStorage.getItem(cacheKey);
