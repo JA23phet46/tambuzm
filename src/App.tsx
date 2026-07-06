@@ -384,13 +384,36 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const flwStatus = params.get('FLW_STATUS') || params.get('status');
     const txRef = params.get('tx_ref') || params.get('txRef');
+    const transactionId = params.get('transaction_id') || params.get('transactionId');
     const isCancelledStatus = flwStatus === 'cancelled' || flwStatus === 'failed' || params.get('cancelled') === 'true';
     
     if (flwStatus || isCancelledStatus) {
       if ((flwStatus === 'success' || flwStatus === 'successful') && txRef) {
-        triggerToast('Flutterwave Secure Payment Confirmed!', 'success');
-        // Finalize billing logs and premium status renewal
-        handlePaymentComplete();
+        // Contact the backend standard status endpoint to securely verify transaction authenticity
+        const verifyPayment = async () => {
+          try {
+            const url = `/api/payments/status?tx_ref=${encodeURIComponent(txRef)}` + 
+                        (transactionId ? `&transaction_id=${encodeURIComponent(transactionId)}` : '');
+            const res = await fetch(url);
+            const data = await res.json();
+            
+            if (data.success && data.status === 'SUCCESSFUL') {
+              triggerToast('Flutterwave Secure Payment Confirmed!', 'success');
+              // Finalize billing logs and premium status renewal
+              handlePaymentComplete();
+            } else {
+              triggerToast('Secure transaction verification failed. Please contact support.', 'error');
+              setCheckoutItem(null);
+              navigateTo('discovery');
+            }
+          } catch (err) {
+            console.error('Payment verification failed:', err);
+            triggerToast('Could not securely verify transaction status.', 'error');
+            setCheckoutItem(null);
+            navigateTo('discovery');
+          }
+        };
+        verifyPayment();
       } else {
         triggerToast('Payment was cancelled or experienced an error.', 'error');
         setCheckoutItem(null);

@@ -121,6 +121,18 @@ app.post('/api/payments/create', async (req, res) => {
         }
 
         if (data && data.status === 'success' && data.data && data.data.link) {
+          // Register the real transaction as PENDING in our memory registry
+          simulatedTransactions.set(txRef, {
+            tx_ref: txRef,
+            amount: formattedAmount,
+            email: email || 'seeker@tambu.co.zm',
+            phone: normalizedPhone,
+            description: description || 'Tambu Premium Placements and Boarding Services',
+            status: 'PENDING',
+            createdAt: Date.now(),
+            transactionId: '' // Will be populated upon verification
+          });
+
           return res.json({
             success: true,
             tx_ref: txRef,
@@ -182,10 +194,18 @@ app.get('/api/payments/status', async (req, res) => {
                               flwSecretKey !== 'FLWSECK_TEST-xxxxxxxxxxxxxxxx-X' && 
                               flwSecretKey.trim() !== '';
 
-    if (isRealFlutterwave && transactionId && !tx_ref.startsWith('DEMO-')) {
-      console.log(`Verifying actual transaction #${transactionId} via Flutterwave standard node...`);
+    if (isRealFlutterwave && !tx_ref.startsWith('DEMO-')) {
+      // We can verify using transactionId if provided, or fallback to tx_ref
+      let verificationUrl = '';
+      if (transactionId) {
+        verificationUrl = `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`;
+      } else {
+        verificationUrl = `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(tx_ref)}`;
+      }
+
+      console.log(`Verifying actual transaction via Flutterwave standard node: ${verificationUrl}`);
       try {
-        const response = await fetch(`https://api.flutterwave.com/v3/transactions/${transactionId}/verify`, {
+        const response = await fetch(verificationUrl, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -193,18 +213,37 @@ app.get('/api/payments/status', async (req, res) => {
           }
         });
 
-        const responseResponseText = await response.text();
+        const responseText = await response.text();
         let verification: any = null;
         try {
-          verification = JSON.parse(responseResponseText);
+          verification = JSON.parse(responseText);
         } catch (parseErr) {
-          console.error('Failed to parse verification response as JSON:', responseResponseText.slice(0, 500));
+          console.error('Failed to parse verification response as JSON:', responseText.slice(0, 500));
         }
 
         if (verification && verification.status === 'success' && verification.data) {
           const remoteTx = verification.data;
           
           if (remoteTx.status === 'successful') {
+            // Cache successful state on server
+            const existing = simulatedTransactions.get(tx_ref);
+            if (existing) {
+              existing.status = 'SUCCESSFUL';
+              if (remoteTx.id) existing.transactionId = String(remoteTx.id);
+              simulatedTransactions.set(tx_ref, existing);
+            } else {
+              simulatedTransactions.set(tx_ref, {
+                tx_ref,
+                amount: remoteTx.amount,
+                email: remoteTx.customer?.email || '',
+                phone: remoteTx.customer?.phonenumber || '',
+                description: remoteTx.narrative || '',
+                status: 'SUCCESSFUL',
+                createdAt: Date.now(),
+                transactionId: String(remoteTx.id || '')
+              });
+            }
+
             return res.json({
               success: true,
               status: 'SUCCESSFUL',
@@ -221,6 +260,13 @@ app.get('/api/payments/status', async (req, res) => {
               simulated: false
             });
           } else {
+            // Cache failed state on server
+            const existing = simulatedTransactions.get(tx_ref);
+            if (existing) {
+              existing.status = 'FAILED';
+              simulatedTransactions.set(tx_ref, existing);
+            }
+
             return res.json({
               success: true,
               status: 'FAILED',
@@ -228,6 +274,8 @@ app.get('/api/payments/status', async (req, res) => {
               simulated: false
             });
           }
+        } else {
+          console.log(`Flutterwave returned unverified status or error: ${(verification && verification.message) || responseText.slice(0, 200)}`);
         }
       } catch (err) {
         console.error('Verify Flutterwave endpoint failed:', err);
@@ -237,33 +285,19 @@ app.get('/api/payments/status', async (req, res) => {
     // --- EMULATION STATUS RETRIEVAL ---
     const tx = simulatedTransactions.get(tx_ref);
     if (!tx) {
-      // Create a fallback mock transaction dynamically if it was generated offline
-      const dynamicMock: SimulatedFlwTx = {
-        tx_ref,
-        amount: 100.00,
-        email: 'fallback@example.com',
-        phone: '0977112233',
-        description: 'Premium Placement Plan',
-        status: 'SUCCESSFUL', // auto approve fallbacks to ensure client completion doesn't block
-        createdAt: Date.now(),
-        transactionId: String(Math.floor(200000000 + Math.random() * 800000000))
-      };
-      simulatedTransactions.set(tx_ref, dynamicMock);
+      // Real or sandbox transactions must be registered first. If missing, it's an error/expired check.
       return res.json({
-        success: true,
-        status: 'SUCCESSFUL',
-        simulated: true,
-        amount: dynamicMock.amount,
-        reference: tx_ref
+        success: false,
+        status: 'FAILED',
+        reason: 'Transaction reference not found or expired.',
+        simulated: false
       });
     }
-    
-    // Auto-approve simulated sandbox Mobile Money is disabled so the user must actually enter their security PIN/OTP
     
     res.json({
       success: true,
       status: tx.status,
-      simulated: true,
+      simulated: !tx_ref || tx_ref.startsWith('DEMO-') ? true : false,
       amount: tx.amount,
       reference: tx.tx_ref,
       transactionId: tx.transactionId

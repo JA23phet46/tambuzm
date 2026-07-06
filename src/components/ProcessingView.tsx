@@ -28,27 +28,21 @@ export const ProcessingView: React.FC<ProcessingViewProps> = ({
   const [promptError, setPromptError] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
 
-  // Trigger prompt after a realistic delay (1.5 seconds)
+  // Trigger prompt after a realistic delay (1.5 seconds) ONLY for simulated/demo checkouts
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (step === 'waiting') {
-        setShowPrompt(true);
-      }
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [step]);
+    if (!tx_ref || tx_ref.startsWith('DEMO-')) {
+      const timer = setTimeout(() => {
+        if (step === 'waiting') {
+          setShowPrompt(true);
+        }
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [step, tx_ref]);
 
   useEffect(() => {
     if (!tx_ref || tx_ref.startsWith('DEMO-')) {
-      // Fallback behavior if no tx_ref exists or is a sandbox reference (simple countdown simulation)
-      if (seconds > 0) {
-        const timer = setTimeout(() => {
-          setSeconds(seconds - 1);
-        }, 1000);
-        return () => clearTimeout(timer);
-      } else {
-        setStep('success');
-      }
+      // For sandbox/demo transactions, we let the user interact with the mock PIN overlay instead of auto-succeeding
       return;
     }
 
