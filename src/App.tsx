@@ -409,6 +409,10 @@ export default function App() {
     const isCancelledStatus = flwStatus === 'cancelled' || flwStatus === 'failed' || params.get('cancelled') === 'true';
     
     if (flwStatus || isCancelledStatus) {
+      // Clean query parameters from actual URL immediately so refreshes don't re-trigger state
+      const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+      window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
+
       if ((flwStatus === 'success' || flwStatus === 'successful') && txRef) {
         // Contact the backend standard status endpoint to securely verify transaction authenticity
         const verifyPayment = async () => {
@@ -440,12 +444,8 @@ export default function App() {
         setCheckoutItem(null);
         navigateTo('discovery');
       }
-      
-      // Clean query parameters from actual URL so refreshes don't re-trigger complete state
-      const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-      window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
     }
-  }, [userRole, checkoutItem]);
+  }, []);
 
   // --- Process Supabase OAuth hash/callback in popup or main window ---
   useEffect(() => {

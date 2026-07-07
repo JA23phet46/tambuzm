@@ -391,6 +391,58 @@ app.post('/api/payments/simulate-fail', (req, res) => {
   res.status(404).json({ success: false, error: 'Transaction reference not found' });
 });
 
+// Flutterwave Webhook Endpoint
+app.post('/api/webhook', (req, res) => {
+  try {
+    const signature = req.headers['verif-hash'];
+    const secretHash = process.env.FLW_SECRET_HASH || process.env.FLUTTERWAVE_SECRET_HASH;
+    
+    if (secretHash && signature && signature !== secretHash) {
+      console.warn('Flutterwave webhook signature mismatch:', signature);
+      return res.status(401).json({ status: 'error', message: 'Invalid webhook signature' });
+    }
+
+    const event = req.body;
+    console.log('Received Flutterwave Webhook event:', event?.event || 'unknown', JSON.stringify(event).slice(0, 300));
+
+    if (event && event.data) {
+      const data = event.data;
+      const tx_ref = data.tx_ref;
+      const status = data.status; // 'successful', 'failed', etc.
+      const transactionId = data.id ? String(data.id) : '';
+
+      if (tx_ref) {
+        const existing = simulatedTransactions.get(tx_ref);
+        const mappedStatus = (status === 'successful' || status === 'SUCCESSFUL') ? 'SUCCESSFUL' : 'FAILED';
+        
+        if (existing) {
+          existing.status = mappedStatus;
+          if (transactionId) existing.transactionId = transactionId;
+          simulatedTransactions.set(tx_ref, existing);
+          console.log(`Webhook updated transaction ${tx_ref} to ${mappedStatus}`);
+        } else {
+          simulatedTransactions.set(tx_ref, {
+            tx_ref,
+            amount: Number(data.amount || 0),
+            email: data.customer?.email || '',
+            phone: data.customer?.phonenumber || '',
+            description: data.narrative || 'Flutterwave Webhook Transaction',
+            status: mappedStatus,
+            createdAt: Date.now(),
+            transactionId
+          });
+          console.log(`Webhook registered new transaction ${tx_ref} as ${mappedStatus}`);
+        }
+      }
+    }
+
+    return res.status(200).json({ status: 'success' });
+  } catch (err) {
+    console.error('Error processing Flutterwave webhook:', err);
+    return res.status(500).json({ status: 'error', error: String(err) });
+  }
+});
+
 
 // Serve beautiful interactive custom Flutterwave payment simulation portal
 app.get('/flutterwave-mock-payment', (req, res) => {
