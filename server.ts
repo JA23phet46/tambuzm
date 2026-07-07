@@ -137,7 +137,7 @@ app.post('/api/payments/create', async (req, res) => {
       let paymentLink: string | null = null;
       let usedEndpoint = '';
 
-      for (const endpoint of ['https://api.flutterwave.com/v4/payments', 'https://api.flutterwave.com/v3/payments']) {
+      for (const endpoint of ['https://api.flutterwave.com/v3/payments']) {
         try {
           console.log(`Trying Flutterwave endpoint: ${endpoint}`);
           const response = await fetch(endpoint, {
@@ -238,12 +238,12 @@ app.get('/api/payments/status', async (req, res) => {
     if (isRealFlutterwave && accessToken && !tx_ref.startsWith('DEMO-')) {
       let verificationUrl = '';
       if (transactionId) {
-        verificationUrl = `https://api.flutterwave.com/v4/transactions/${transactionId}/verify`;
+        verificationUrl = `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`;
       } else {
-        verificationUrl = `https://api.flutterwave.com/v4/transactions/verify_by_reference?tx_ref=${encodeURIComponent(tx_ref)}`;
+        verificationUrl = `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(tx_ref)}`;
       }
 
-      console.log(`Verifying actual transaction via Flutterwave v4 OAuth node: ${verificationUrl}`);
+      console.log(`Verifying actual transaction via Flutterwave v3 secure node: ${verificationUrl}`);
       try {
         const response = await fetch(verificationUrl, {
           method: 'GET',
@@ -286,7 +286,7 @@ app.get('/api/payments/status', async (req, res) => {
             return res.json({
               success: true,
               status: 'SUCCESSFUL',
-              reason: 'Transaction verified by Flutterwave v4 secure ledger.',
+              reason: 'Transaction verified by Flutterwave v3 secure ledger.',
               simulated: false,
               amount: remoteTx.amount,
               reference: remoteTx.tx_ref
