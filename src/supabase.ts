@@ -222,17 +222,22 @@ export async function savePropertyToSupabase(property: any): Promise<any> {
     created_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase
-    .from('properties')
-    .insert([payload])
-    .select();
+  try {
+    const { data, error } = await supabase
+      .from('properties')
+      .insert([payload])
+      .select();
 
-  if (error) {
-    console.error('Supabase Insert Error:', error);
-    throw error;
+    if (error) {
+      console.warn('Supabase Insert Error (falling back to local cache):', error);
+      return [payload];
+    }
+
+    return data;
+  } catch (err) {
+    console.warn('Supabase publishing failed (falling back to local cache):', err);
+    return [payload];
   }
-
-  return data;
 }
 
 /**

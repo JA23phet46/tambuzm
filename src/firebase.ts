@@ -454,7 +454,7 @@ export async function getUserProfile(uid: string): Promise<FirebaseUserProfile |
     const createdAtDate = new Date();
     createdAtDate.setDate(createdAtDate.getDate() - 1);
     const trialEndsDate = new Date(createdAtDate);
-    trialEndsDate.setDate(trialEndsDate.getDate() + 9);
+    trialEndsDate.setDate(trialEndsDate.getDate() + 7);
 
     const defaultProfile: FirebaseUserProfile = {
       userId: uid,

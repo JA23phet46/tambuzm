@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Sliders, ChevronRight, Star, Heart, Bed, Bath, Sparkles, Building2, GraduationCap, Home, Eye, MapPin, Footprints, Check } from 'lucide-react';
+import { Search, Sliders, ChevronRight, Star, Heart, Bed, Bath, Sparkles, Building2, GraduationCap, Home, Eye, MapPin, Footprints, Check, Trash2 } from 'lucide-react';
 import { Property, Province, PropertyType, UserRole, isPropertyActive } from '../types';
 
 interface DiscoveryViewProps {
@@ -20,6 +20,7 @@ interface DiscoveryViewProps {
   subscriptionExpiry?: string;
   isAdmin?: boolean;
   onTogglePropertyVerified?: (id: string, currentVerified: boolean) => void;
+  onDeleteProperty?: (id: string) => void;
 }
 
 export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
@@ -40,6 +41,7 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
   subscriptionExpiry,
   isAdmin = false,
   onTogglePropertyVerified,
+  onDeleteProperty,
 }) => {
   const formatPrice = (val: any) => {
     if (val === undefined || val === null) return '0';
@@ -300,6 +302,18 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
                     <span className={`w-1 h-1 rounded-full ${item.available !== false ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
                     {item.available !== false ? 'Available' : 'Pending'}
                   </div>
+                  {isAdmin && onDeleteProperty && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteProperty(item.id);
+                      }}
+                      className="absolute top-2 right-9 w-6 h-6 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center text-red-700 shadow-sm z-10 active:scale-95 transition-all"
+                      title="Super Admin: Delete Listing"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={(e) => onToggleSaved(item.id, e)}
                     className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 flex items-center justify-center text-[#b52330] shadow-sm active:scale-95 transition-transform z-10"
@@ -415,6 +429,18 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
                     <span className={`w-1 h-1 rounded-full ${p.available !== false ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
                     {p.available !== false ? 'Available' : 'Pending'}
                   </div>
+                  {isAdmin && onDeleteProperty && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteProperty(p.id);
+                      }}
+                      className="absolute top-2 right-9 w-6 h-6 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center text-red-700 shadow-sm z-10 active:scale-95 transition-all"
+                      title="Super Admin: Delete Listing"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={(e) => onToggleSaved(p.id, e)}
                     className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 flex items-center justify-center text-[#b52330] shadow-sm active:scale-90 transition-transform z-10"
@@ -529,6 +555,18 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
                     <span className={`w-1 h-1 rounded-full ${item.available !== false ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
                     {item.available !== false ? 'Available' : 'Pending'}
                   </div>
+                  {isAdmin && onDeleteProperty && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteProperty(item.id);
+                      }}
+                      className="absolute top-2 right-9 w-6 h-6 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center text-red-700 shadow-sm z-10 active:scale-95 transition-all"
+                      title="Super Admin: Delete Listing"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={(e) => onToggleSaved(item.id, e)}
                     className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 flex items-center justify-center text-[#b52330] shadow-sm hover:scale-105 active:scale-95 transition-transform z-10"

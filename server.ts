@@ -25,54 +25,18 @@ interface SimulatedFlwTx {
 const simulatedTransactions = new Map<string, SimulatedFlwTx>();
 
 // --- Flutterwave Base API URL Resolution ---
-const FLW_BASE_URL = process.env.NODE_ENV === 'production'
-  ? 'https://api.flutterwave.com'
-  : 'https://api.flutterwave.com';
+const FLW_BASE_URL = 'https://api.flutterwave.com/v3';
 
-// --- Flutterwave v4 Token & Secret Key Resolution ---
+// --- Flutterwave Token & Secret Key Resolution ---
 async function getFlutterwaveV4AccessToken(): Promise<string | null> {
   const secretKey = process.env.FLW_SECRET_KEY;
   if (secretKey && secretKey !== 'FLWSECK_TEST-xxxxxxxxxxxxxxxx-X' && secretKey.trim() !== '') {
     return secretKey;
   }
-
-  const clientId = process.env.FLW_CLIENT_ID;
-  const clientSecret = process.env.FLW_CLIENT_SECRET;
-  if (!clientId || !clientSecret || clientId.includes('placeholder') || clientSecret.includes('placeholder') || clientId.trim() === '') {
-    return null;
-  }
-
-  const tokenEndpoints = [
-    `${FLW_BASE_URL}/v4/oauth/token`,
-    'https://api.flutterwave.com/v4/oauth/token'
-  ];
-
-  for (const tokenEndpoint of tokenEndpoints) {
-    try {
-      const response = await fetch(tokenEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          client_id: clientId,
-          client_secret: clientSecret,
-          grant_type: 'client_credentials'
-        })
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const token = data.access_token || data.token || data.data?.access_token || null;
-        if (token) return token;
-      }
-    } catch (err) {
-      console.warn(`Flutterwave v4 OAuth token fetch failed at ${tokenEndpoint}:`, err);
-    }
-  }
   return null;
 }
 
-// --- Flutterwave v4 API proxy controllers ---
+// --- Flutterwave API proxy controllers ---
 
 // Create payment link/charge
 app.post('/api/payments/create', async (req, res) => {
@@ -129,7 +93,7 @@ app.post('/api/payments/create', async (req, res) => {
     const flwRedirectUrl = `${baseUrl}/`;
 
     if (isRealFlutterwave && accessToken) {
-      console.log(`Connecting securely to Flutterwave v4 Payment API using OAuth Bearer Token... Phone: ${normalizedPhone}, callback: ${flwRedirectUrl}`);
+      console.log(`Connecting securely to Flutterwave v3 Payment API... Phone: ${normalizedPhone}, callback: ${flwRedirectUrl}`);
       
       const flwPayload = {
         tx_ref: txRef,
@@ -152,8 +116,8 @@ app.post('/api/payments/create', async (req, res) => {
       let usedEndpoint = '';
 
       const paymentEndpoints = [
-        `${FLW_BASE_URL}/v4/payments`,
-        'https://api.flutterwave.com/v4/payments'
+        `${FLW_BASE_URL}/payments`,
+        'https://api.flutterwave.com/v3/payments'
       ];
 
       for (const endpoint of paymentEndpoints) {
@@ -262,13 +226,13 @@ app.get('/api/payments/status', async (req, res) => {
       let verificationUrls: string[] = [];
       if (transactionId) {
         verificationUrls = [
-          `${FLW_BASE_URL}/v4/transactions/${transactionId}/verify`,
-          `https://api.flutterwave.com/v4/transactions/${transactionId}/verify`
+          `${FLW_BASE_URL}/transactions/${transactionId}/verify`,
+          `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`
         ];
       } else {
         verificationUrls = [
-          `${FLW_BASE_URL}/v4/transactions/verify_by_reference?tx_ref=${encodeURIComponent(tx_ref)}`,
-          `https://api.flutterwave.com/v4/transactions/verify_by_reference?tx_ref=${encodeURIComponent(tx_ref)}`
+          `${FLW_BASE_URL}/transactions?tx_ref=${encodeURIComponent(tx_ref)}`,
+          `https://api.flutterwave.com/v3/transactions?tx_ref=${encodeURIComponent(tx_ref)}`
         ];
       }
 

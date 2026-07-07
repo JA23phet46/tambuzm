@@ -191,17 +191,42 @@ export const ProcessingView: React.FC<ProcessingViewProps> = ({
           </div>
 
           {paymentUrl && (
-            <div className="pt-2">
-              <a
-                href={paymentUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs sm:text-sm font-extrabold rounded-xl transition-all shadow-sm active:scale-95"
-              >
-                Proceed to Checkout Portal <CheckCircle className="w-4 h-4" />
-              </a>
-              <p className="text-[10px] text-gray-500 mt-2">
-                If the secure checkout window didn't open automatically, please click the button above to complete your payment.
+            <div className="pt-3 pb-2 bg-[#fdf2f2] p-4 rounded-xl border border-[#f8d7da] space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-[#b52330]">
+                  Flutterwave Secure Checkout Ready
+                </span>
+                <span className="text-[10px] bg-[#b52330]/10 text-[#b52330] font-extrabold px-2 py-0.5 rounded-full">
+                  ZMW {amount.toFixed(2)}
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPrompt(true)}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-extrabold rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
+                >
+                  Open In-App Flutterwave Checkout <CheckCircle className="w-3.5 h-3.5" />
+                </button>
+                <a
+                  href={paymentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    try {
+                      window.open(paymentUrl, '_blank');
+                    } catch (err) {
+                      console.warn(err);
+                    }
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-white border border-[#b52330] text-[#b52330] hover:bg-[#fdf2f2] text-xs font-extrabold rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer"
+                >
+                  Open External Tab
+                </a>
+              </div>
+              <p className="text-[10px] text-gray-600 leading-normal">
+                If external tabs appear blank due to browser security restrictions or missing sandbox API keys, click <span className="font-bold">Open In-App Flutterwave Checkout</span> above to complete your transaction instantly.
               </p>
             </div>
           )}

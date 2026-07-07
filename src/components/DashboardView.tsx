@@ -246,7 +246,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="space-y-1">
                 <h4 className="font-extrabold text-sm text-[#b52330]">⚠️ Your Free Trial / Subscription has Expired</h4>
                 <p className="text-xs text-[#5a403f] leading-relaxed">
-                  Your listed properties are currently <span className="font-bold underline">inactive</span> and hidden from seeker searches on the platform. Please pay 100 Kwacha via Flutterwave secure checkout standard plan to re-activate instantly.
+                  Your listed properties are currently <span className="font-bold underline">inactive</span>. Please pay K100 monthly subscription manually through mobile money number <span className="font-mono font-bold text-[#b52330]">0974661185</span> (Japhet Ndafi). Failure to do so will result in property deletion by Super Admin.
                 </p>
               </div>
               <button
@@ -254,7 +254,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 onClick={onPaySubscription}
                 className="bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-2.5 px-4 rounded-xl transition-all active:scale-95 shrink-0 shadow-sm cursor-pointer"
               >
-                Renew via Flutterwave
+                Pay Manual K100 Subscription
               </button>
             </div>
           )}
@@ -675,13 +675,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </section>
 
-          {/* Flutterwave Transaction Logs (Owner Standard Extension Plans) */}
+          {/* Manual Subscription Records */}
           {!isAdmin && (
             <section className="space-y-4">
               <div>
                 <h2 className="text-lg sm:text-xl font-bold text-[#1b1c1c]">Tambu Subscription Payment Records</h2>
                 <p className="text-xs text-[#5a403f]">
-                  Official subscription payment records compiled from Flutterwave webhooks portal
+                  Manual mobile money subscription payment records submitted to 0974661185 (Japhet Ndafi)
                 </p>
               </div>
 

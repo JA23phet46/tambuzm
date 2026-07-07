@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Star, MapPin, Bed, Bath, Shield, Waves, Share2, Heart, Phone, MessageSquare, Compass, Send, Footprints, Check } from 'lucide-react';
+import { Star, MapPin, Bed, Bath, Shield, Waves, Share2, Heart, Phone, MessageSquare, Compass, Send, Footprints, Check, Trash2 } from 'lucide-react';
 import { Property } from '../types';
 
 interface PropertyDetailsViewProps {
@@ -12,6 +12,7 @@ interface PropertyDetailsViewProps {
   onShowToast: (msg: string, type: 'success' | 'error') => void;
   isAdmin?: boolean;
   onTogglePropertyVerified?: (id: string, currentVerified: boolean) => void;
+  onDeleteProperty?: (id: string) => void;
 }
 
 export const PropertyDetailsView: React.FC<PropertyDetailsViewProps> = ({
@@ -24,6 +25,7 @@ export const PropertyDetailsView: React.FC<PropertyDetailsViewProps> = ({
   onShowToast,
   isAdmin = false,
   onTogglePropertyVerified,
+  onDeleteProperty,
 }) => {
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
   const [reviews, setReviews] = useState<any[]>(() => {
@@ -485,7 +487,7 @@ Perfectly situated to guarantee brief commuting walks to top universities, forei
                 </div>
               </div>
 
-              {/* Secure Checkout / Book Appointment CTA button */}
+              {/* Contact CTA buttons */}
               <div className="pt-2 space-y-3">
                 {property.available === false && (
                   <div className="bg-amber-50 border border-amber-250 text-amber-900 p-3 rounded-xl text-xs space-y-1">
@@ -497,18 +499,6 @@ Perfectly situated to guarantee brief commuting walks to top universities, forei
                     </p>
                   </div>
                 )}
-
-                <button
-                  disabled={property.available === false}
-                  onClick={() => onNavigate('checkout')}
-                  className={`w-full py-3.5 rounded-xl text-sm font-extrabold tracking-wide transition-all shadow-sm flex items-center justify-center gap-2 ${
-                    property.available !== false
-                      ? 'bg-[#b52330] hover:bg-[#9a1c26] text-white active:scale-[0.98]'
-                      : 'bg-gray-150 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  {property.available !== false ? (isLoggedIn ? `Rent Now (ZMW ${formatPrice(property.price)})` : "Sign In to Rent Now") : 'Occupied / Rent Pending'}
-                </button>
 
                 <a
                   href={`tel:${property.ownerPhone || (property.ownerName === 'Mwamba Chileshe' ? '+260977629402' : property.ownerName === 'Bwalya Tembo' ? '+260954739211' : property.ownerName === 'Chanda Mukuka' ? '+260979928172' : property.ownerName === 'Misozi Phiri' ? '+260971184910' : '+260965839204')}`}
@@ -529,6 +519,19 @@ Perfectly situated to guarantee brief commuting walks to top universities, forei
                 >
                   <MessageSquare className="w-4 h-4 text-emerald-600" /> Chat on WhatsApp
                 </a>
+
+                {isAdmin && onDeleteProperty && (
+                  <button
+                    onClick={() => {
+                      onDeleteProperty(property.id);
+                      onShowToast('Listing successfully deleted by Super Admin', 'success');
+                      onNavigate('discovery');
+                    }}
+                    className="w-full py-3 bg-red-50 hover:bg-red-100 border border-red-250 text-red-700 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-sm cursor-pointer text-center mt-3"
+                  >
+                    <Trash2 className="w-4 h-4 text-red-600" /> Super Admin: Delete Listing
+                  </button>
+                )}
               </div>
             </div>
 
@@ -568,17 +571,19 @@ Perfectly situated to guarantee brief commuting walks to top universities, forei
             <MessageSquare className="w-4 h-4 text-emerald-600" />
           </a>
 
-          <button 
-            disabled={property.available === false}
-            onClick={() => onNavigate('checkout')}
-            className={`flex-1 max-w-[150px] h-10 text-xs font-extrabold rounded-xl flex items-center justify-center gap-1 transition-all ${
-              property.available !== false
-                ? 'bg-[#b52330] hover:bg-[#9a1c26] text-white active:scale-95 shadow-md'
-                : 'bg-gray-150 text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            {property.available !== false ? (isLoggedIn ? 'Rent Now' : 'Sign In to Rent') : 'Occupied'}
-          </button>
+          {isAdmin && onDeleteProperty && (
+            <button
+              onClick={() => {
+                onDeleteProperty(property.id);
+                onShowToast('Listing successfully deleted by Super Admin', 'success');
+                onNavigate('discovery');
+              }}
+              className="h-10 px-3 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-extrabold rounded-xl flex items-center gap-1 transition-all active:scale-95 shadow-sm"
+              title="Delete Listing"
+            >
+              <Trash2 className="w-4 h-4" /> Delete
+            </button>
+          )}
         </div>
       </div>
     </div>

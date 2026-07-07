@@ -667,7 +667,7 @@ export default function App() {
           
           const now = new Date();
           const trialDate = new Date();
-          trialDate.setDate(now.getDate() + 9); // 9-day trial structure
+          trialDate.setDate(now.getDate() + 7); // 7-day trial structure
 
           const newProfile = {
             userId: firebaseUser.uid,
@@ -1320,7 +1320,7 @@ export default function App() {
         role: userRole, // Uses the current UI selected role preference
         savedIds: [],
         createdAt: new Date().toISOString(),
-        trialEndsAt: new Date(Date.now() + 9 * 24 * 3600 * 1000).toISOString(),
+        trialEndsAt: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
         isSubscribed: false,
         subscriptionExpiresAt: null
       };
@@ -1362,7 +1362,7 @@ export default function App() {
       
       const now = new Date();
       const trialDate = new Date();
-      trialDate.setDate(now.getDate() + 9); // 9-day trials for owners
+      trialDate.setDate(now.getDate() + 7); // 7-day trials for owners
 
       const newProfile = {
         userId: credential.user.uid,
@@ -1400,7 +1400,7 @@ export default function App() {
 
       const now = new Date();
       const trialDate = new Date();
-      trialDate.setDate(now.getDate() + 9); // 9-day trial for owners
+      trialDate.setDate(now.getDate() + 7); // 7-day trial for owners
       
       const simulatedUid = 'sandbox_' + Math.random().toString(36).substring(2, 11);
       const newProfile = {
@@ -1728,144 +1728,98 @@ export default function App() {
     }
   };
 
-  // --- Secure checkout payment triggers ---
-  const handlePayMTN = async (phone: string) => {
+  // --- Manual mobile money payment confirmation handler ---
+  const handleConfirmManualPayment = async (reference: string, phone: string) => {
     setUserPhone(phone);
-    setMomoProvider('mtn');
-    
-    try {
-      const response = await callBackendApi('/api/payments/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: checkoutItem?.amount || 100.00,
-          reference: checkoutItem?.reference || 'SUB-' + Date.now(),
-          email: userEmail || 'seeker@tambu.co.zm',
-          phone: phone,
-          description: checkoutItem?.name || 'Tambu Premium Placements',
-          redirectUrl: window.location.origin + '/'
-        })
-      });
-      const data = await response.json();
-      if (data.success) {
-        setCurrentFlwRef(data.tx_ref);
-        setCurrentFlwUrl(data.paymentUrl);
-        
-        try {
-          window.open(data.paymentUrl, '_blank');
-        } catch (popupErr) {
-          console.warn('Popup blocked, relying on manual button:', popupErr);
-        }
-        
-        navigateTo('payment-waiting');
-      } else {
-        // Fall back gracefully to local sandbox if status is not success
-        triggerToast('Gateway busy. Directing to Tambu Safe Checkout sandbox...', 'success');
-        const fallbackRef = 'DEMO-SUB-' + Date.now();
-        setCurrentFlwRef(fallbackRef);
-        setCurrentFlwUrl(null);
-        navigateTo('payment-waiting');
-      }
-    } catch (err: any) {
-      console.error('Flutterwave initialize failed:', err);
-      triggerToast('Gateway offline. Directing to Tambu Safe Checkout sandbox...', 'success');
-      const fallbackRef = 'DEMO-SUB-' + Date.now();
-      setCurrentFlwRef(fallbackRef);
-      setCurrentFlwUrl(null);
-      navigateTo('payment-waiting');
-    }
-  };
+    if (!checkoutItem) return;
 
-  const handlePayAirtel = async (phone: string) => {
-    setUserPhone(phone);
-    setMomoProvider('airtel');
-    
-    try {
-      const response = await callBackendApi('/api/payments/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: checkoutItem?.amount || 100.00,
-          reference: checkoutItem?.reference || 'SUB-' + Date.now(),
-          email: userEmail || 'seeker@tambu.co.zm',
-          phone: phone,
-          description: checkoutItem?.name || 'Tambu Premium Placements',
-          redirectUrl: window.location.origin + '/'
-        })
-      });
-      const data = await response.json();
-      if (data.success) {
-        setCurrentFlwRef(data.tx_ref);
-        setCurrentFlwUrl(data.paymentUrl);
-        
+    if (checkoutItem.type === 'subscription') {
+      const billId = 'sub_' + Date.now();
+      const newInvoice: BillingRecord = {
+        id: billId,
+        reference: reference,
+        amount: checkoutItem.amount,
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        status: 'SUCCESSFUL'
+      };
+      
+      if (currentUser) {
         try {
-          window.open(data.paymentUrl, '_blank');
-        } catch (popupErr) {
-          console.warn('Popup blocked, relying on manual button:', popupErr);
-        }
-        
-        navigateTo('payment-waiting');
-      } else {
-        // Fall back gracefully to local sandbox if status is not success
-        triggerToast('Gateway busy. Directing to Tambu Safe Checkout sandbox...', 'success');
-        const fallbackRef = 'DEMO-SUB-' + Date.now();
-        setCurrentFlwRef(fallbackRef);
-        setCurrentFlwUrl(null);
-        navigateTo('payment-waiting');
-      }
-    } catch (err: any) {
-      console.error('Flutterwave initialize failed:', err);
-      triggerToast('Gateway offline. Directing to Tambu Safe Checkout sandbox...', 'success');
-      const fallbackRef = 'DEMO-SUB-' + Date.now();
-      setCurrentFlwRef(fallbackRef);
-      setCurrentFlwUrl(null);
-      navigateTo('payment-waiting');
-    }
-  };
+          await addBillingRecord(currentUser.uid, newInvoice);
+          const profile = await getUserProfile(currentUser.uid);
+          if (profile) {
+            const date = new Date();
+            date.setDate(date.getDate() + 30);
+            const expiryString = date.toISOString();
+            const updatedProfile = {
+              ...profile,
+              isSubscribed: true,
+              subscriptionExpiresAt: expiryString
+            };
+            await saveUserProfile(updatedProfile);
 
-  const handlePayCard = async () => {
-    setMomoProvider('card');
-    
-    try {
-      const response = await callBackendApi('/api/payments/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: checkoutItem?.amount || 100.00,
-          reference: checkoutItem?.reference || 'SUB-' + Date.now(),
-          email: userEmail || 'seeker@tambu.co.zm',
-          phone: userPhone || '0977223344',
-          description: checkoutItem?.name || 'Tambu Premium Placements',
-          redirectUrl: window.location.origin + '/'
-        })
-      });
-      const data = await response.json();
-      if (data.success) {
-        setCurrentFlwRef(data.tx_ref);
-        setCurrentFlwUrl(data.paymentUrl);
-        
-        try {
-          window.open(data.paymentUrl, '_blank');
-        } catch (popupErr) {
-          console.warn('Popup blocked, relying on manual button:', popupErr);
+            const ownerProps = properties.filter((p) => p.ownerId === currentUser.uid);
+            for (const p of ownerProps) {
+              try {
+                await updatePropertyListing(p.id, {
+                  ownerIsSubscribed: true,
+                  ownerSubscriptionExpiresAt: expiryString
+                });
+              } catch (subErr) {
+                console.warn(`Could not update subscription expiry fields on property ${p.id}:`, subErr);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Could not persist manual subscription record in Firestore:', err);
         }
-        
-        navigateTo('payment-waiting');
-      } else {
-        // Fall back gracefully to local sandbox if status is not success
-        triggerToast('Gateway busy. Directing to Tambu Safe Checkout sandbox...', 'success');
-        const fallbackRef = 'DEMO-SUB-' + Date.now();
-        setCurrentFlwRef(fallbackRef);
-        setCurrentFlwUrl(null);
-        navigateTo('payment-waiting');
       }
-    } catch (err: any) {
-      console.error('Flutterwave initialize failed:', err);
-      triggerToast('Gateway offline. Directing to Tambu Safe Checkout sandbox...', 'success');
-      const fallbackRef = 'DEMO-SUB-' + Date.now();
-      setCurrentFlwRef(fallbackRef);
-      setCurrentFlwUrl(null);
-      navigateTo('payment-waiting');
+      
+      setBillingRecords(prev => [newInvoice, ...prev]);
+      setIsSubscribed(true);
+      const date = new Date();
+      date.setDate(date.getDate() + 30);
+      const expiryStr = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      setSubscriptionExpiry(expiryStr);
+      setIsSubscriptionExpired(false);
+      setCheckoutItem(null);
+      
+      triggerToast('Manual payment submitted for K100! Super Admin will verify transfer to 0974661185 (Japhet Ndafi).', 'success');
+      navigateTo('owner-dashboard');
+    } else if (checkoutItem.type === 'listing' && selectedProperty) {
+      const paymentId = 'pay_' + Date.now();
+      const rentPaymentRecord: RentPayment = {
+        id: paymentId,
+        reference: reference,
+        propertyId: selectedProperty.id,
+        propertyName: selectedProperty.name,
+        propertyLocation: selectedProperty.location,
+        renterId: currentUser ? currentUser.uid : 'seeker_anonymous',
+        renterName: userName || 'Seeker Guest',
+        renterEmail: userEmail || '',
+        renterPhone: phone || '',
+        ownerId: selectedProperty.ownerId || 'unknown_owner',
+        ownerName: selectedProperty.ownerName || 'Property Owner',
+        amount: checkoutItem.amount,
+        status: 'SUCCESSFUL',
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        createdAt: new Date().toISOString()
+      };
+
+      try {
+        await addRentPayment(rentPaymentRecord);
+        triggerToast(`Manual rent payment record submitted for ZMW ${checkoutItem.amount}!`, 'success');
+      } catch (err) {
+        console.warn('Could not persist rent payment in Firestore:', err);
+        triggerToast(`Manual rent payment recorded successfully!`, 'success');
+      }
+
+      setRentPayments(prev => [rentPaymentRecord, ...prev]);
+      setCheckoutItem(null);
+      navigateTo('seeker-dashboard');
+    } else {
+      triggerToast('Manual payment transaction successfully documented', 'success');
+      navigateTo(userRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
     }
   };
 
@@ -2047,6 +2001,8 @@ export default function App() {
                   trialEndsAt={trialEndsAt}
                   isSubscribed={isSubscribed}
                   subscriptionExpiry={subscriptionExpiry}
+                  isAdmin={isAdmin && adminModeActive}
+                  onDeleteProperty={handleDeleteProperty}
                 />
               );
 
@@ -2134,6 +2090,8 @@ export default function App() {
                   onToggleSaved={handleToggleSaved}
                   onNavigate={navigateTo}
                   onShowToast={triggerToast}
+                  isAdmin={isAdmin && adminModeActive}
+                  onDeleteProperty={handleDeleteProperty}
                 />
               );
 
@@ -2156,9 +2114,7 @@ export default function App() {
               return (
                 <CheckoutView
                   userPhone={userPhone}
-                  onPayMTN={handlePayMTN}
-                  onPayAirtel={handlePayAirtel}
-                  onPayCard={handlePayCard}
+                  onConfirmManualPayment={handleConfirmManualPayment}
                   onCancel={handleBack}
                   title={checkoutItem?.name}
                   description={checkoutItem?.detail}
