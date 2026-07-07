@@ -42,6 +42,27 @@ import { ChatView } from './components/ChatView';
 // Supabase Integration
 import { isSupabaseConfigured, savePropertyToSupabase, getPropertiesFromSupabase } from './supabase';
 
+const BACKEND_BASE = 'https://ais-dev-ujdcsokgyikdtfj2x5h4up-529746612452.europe-west2.run.app';
+
+async function callBackendApi(endpoint: string, options?: RequestInit): Promise<Response> {
+  try {
+    const res = await fetch(endpoint, options);
+    if (res.ok || res.status < 500) {
+      if (res.status === 404 && !window.location.hostname.includes('run.app') && !window.location.hostname.includes('localhost')) {
+        return await fetch(`${BACKEND_BASE}${endpoint}`, options);
+      }
+      return res;
+    }
+    return await fetch(`${BACKEND_BASE}${endpoint}`, options);
+  } catch (err) {
+    try {
+      return await fetch(`${BACKEND_BASE}${endpoint}`, options);
+    } catch (remoteErr) {
+      throw remoteErr;
+    }
+  }
+}
+
 export default function App() {
   // --- Persistent State hooks ---
   const [currentPage, setCurrentPage] = useState<string>(() => {
@@ -394,7 +415,7 @@ export default function App() {
           try {
             const url = `/api/payments/status?tx_ref=${encodeURIComponent(txRef)}` + 
                         (transactionId ? `&transaction_id=${encodeURIComponent(transactionId)}` : '');
-            const res = await fetch(url);
+            const res = await callBackendApi(url);
             const data = await res.json();
             
             if (data.success && data.status === 'SUCCESSFUL') {
@@ -1695,7 +1716,7 @@ export default function App() {
     setMomoProvider('mtn');
     
     try {
-      const response = await fetch('/api/payments/create', {
+      const response = await callBackendApi('/api/payments/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1742,7 +1763,7 @@ export default function App() {
     setMomoProvider('airtel');
     
     try {
-      const response = await fetch('/api/payments/create', {
+      const response = await callBackendApi('/api/payments/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1788,7 +1809,7 @@ export default function App() {
     setMomoProvider('card');
     
     try {
-      const response = await fetch('/api/payments/create', {
+      const response = await callBackendApi('/api/payments/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
