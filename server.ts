@@ -42,7 +42,16 @@ async function getFlutterwaveV4AccessToken(): Promise<string | null> {
     return null;
   }
 
-  for (const tokenEndpoint of [`${FLW_BASE_URL}/v4/oauth/token`, `${FLW_BASE_URL}/v3/oauth/token`]) {
+  const tokenEndpoints = [
+    `${FLW_BASE_URL}/v4/oauth/token`,
+    `${FLW_BASE_URL}/v3/oauth/token`,
+    `${FLW_BASE_URL}/oauth/token`,
+    'https://api.flutterwave.com/v4/oauth/token',
+    'https://api.flutterwave.com/v3/oauth/token',
+    'https://f4bexperience.flutterwave.com/v4/oauth/token'
+  ];
+
+  for (const tokenEndpoint of tokenEndpoints) {
     try {
       const response = await fetch(tokenEndpoint, {
         method: 'POST',
@@ -57,7 +66,7 @@ async function getFlutterwaveV4AccessToken(): Promise<string | null> {
       });
       if (response.ok) {
         const data = await response.json();
-        const token = data.access_token || data.token || null;
+        const token = data.access_token || data.token || data.data?.access_token || null;
         if (token) return token;
       }
     } catch (err) {
@@ -146,7 +155,17 @@ app.post('/api/payments/create', async (req, res) => {
       let paymentLink: string | null = null;
       let usedEndpoint = '';
 
-      for (const endpoint of [`${FLW_BASE_URL}/v4/payments`, `${FLW_BASE_URL}/v3/payments`]) {
+      const paymentEndpoints = [
+        `${FLW_BASE_URL}/v4/payments`,
+        `${FLW_BASE_URL}/v3/payments`,
+        `${FLW_BASE_URL}/payments`,
+        'https://api.flutterwave.com/v4/payments',
+        'https://api.flutterwave.com/v3/payments',
+        'https://f4bexperience.flutterwave.com/v4/payments',
+        'https://f4bexperience.flutterwave.com/payments'
+      ];
+
+      for (const endpoint of paymentEndpoints) {
         try {
           console.log(`Trying Flutterwave endpoint: ${endpoint}`);
           const response = await fetch(endpoint, {
