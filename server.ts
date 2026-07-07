@@ -24,17 +24,44 @@ interface SimulatedFlwTx {
 }
 const simulatedTransactions = new Map<string, SimulatedFlwTx>();
 
-// --- Flutterwave standard API proxy controllers ---
+// --- Flutterwave v4 OAuth 2.0 Token Generation ---
+async function getFlutterwaveV4AccessToken(): Promise<string | null> {
+  const clientId = process.env.FLW_CLIENT_ID;
+  const clientSecret = process.env.FLW_CLIENT_SECRET;
+  if (!clientId || !clientSecret || clientId.includes('placeholder') || clientSecret.includes('placeholder') || clientId.trim() === '') {
+    return null;
+  }
+  try {
+    const response = await fetch('https://api.flutterwave.com/v4/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'client_credentials'
+      })
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return data.access_token || data.token || null;
+    }
+  } catch (err) {
+    console.warn("Flutterwave v4 OAuth token fetch failed:", err);
+  }
+  return null;
+}
+
+// --- Flutterwave v4 API proxy controllers ---
 
 // Create payment link/charge
 app.post('/api/payments/create', async (req, res) => {
   try {
     const { amount, reference, email, phone, description, redirectUrl } = req.body;
     
-    const flwSecretKey = process.env.FLW_SECRET_KEY;
-    const isRealFlutterwave = flwSecretKey && 
-                              flwSecretKey !== 'FLWSECK_TEST-xxxxxxxxxxxxxxxx-X' && 
-                              flwSecretKey.trim() !== '';
+    const accessToken = await getFlutterwaveV4AccessToken();
+    const isRealFlutterwave = !!accessToken;
 
     const formattedAmount = Number(amount || 100);
     const txRef = reference || `tambu-tx-${Date.now()}`;
@@ -82,8 +109,8 @@ app.post('/api/payments/create', async (req, res) => {
     baseUrl = baseUrl.replace(/\/$/, '');
     const flwRedirectUrl = `${baseUrl}/`;
 
-    if (isRealFlutterwave) {
-      console.log(`Connecting securely to Flutterwave Group standard Payment API... Phone: ${normalizedPhone}, callback: ${flwRedirectUrl}`);
+    if (isRealFlutterwave && accessToken) {
+      console.log(`Connecting securely to Flutterwave v4 Payment API using OAuth Bearer Token... Phone: ${normalizedPhone}, callback: ${flwRedirectUrl}`);
       
       const flwPayload = {
         tx_ref: txRef,
@@ -103,11 +130,11 @@ app.post('/api/payments/create', async (req, res) => {
       };
 
       try {
-        const response = await fetch('https://api.flutterwave.com/v3/payments', {
+        const response = await fetch('https://api.flutterwave.com/v4/payments', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${flwSecretKey}`
+            'Authorization': `Bearer ${accessToken}`
           },
           body: JSON.stringify(flwPayload)
         });
@@ -117,11 +144,10 @@ app.post('/api/payments/create', async (req, res) => {
         try {
           data = JSON.parse(responseText);
         } catch (parseErr) {
-          console.error('Failed to parse Flutterwave response as JSON:', responseText.slice(0, 500));
+          console.error('Failed to parse Flutterwave v4 response as JSON:', responseText.slice(0, 500));
         }
 
-        if (data && data.status === 'success' && data.data && data.data.link) {
-          // Register the real transaction as PENDING in our memory registry
+        if (data && (data.status === 'success' || data.success) && data.data && data.data.link) {
           simulatedTransactions.set(txRef, {
             tx_ref: txRef,
             amount: formattedAmount,
@@ -130,7 +156,7 @@ app.post('/api/payments/create', async (req, res) => {
             description: description || 'Tambu Premium Placements and Boarding Services',
             status: 'PENDING',
             createdAt: Date.now(),
-            transactionId: '' // Will be populated upon verification
+            transactionId: ''
           });
 
           return res.json({
@@ -141,10 +167,10 @@ app.post('/api/payments/create', async (req, res) => {
             reference: txRef
           });
         } else {
-          console.error('Flutterwave rejected payment generation:', (data && data.message) || data || responseText.slice(0, 500));
+          console.error('Flutterwave v4 rejected payment generation:', (data && data.message) || data || responseText.slice(0, 500));
         }
       } catch (flwErr) {
-        console.error('Flutterwave standard endpoint lookup error:', flwErr);
+        console.error('Flutterwave v4 endpoint request error:', flwErr);
       }
       console.warn('Falling back gracefully to local high-fidelity Flutterwave checkout emulator');
     }
@@ -164,7 +190,6 @@ app.post('/api/payments/create', async (req, res) => {
     
     simulatedTransactions.set(txRef, mockTx);
     
-    // Generate unified local redirect link
     res.json({
       success: true,
       tx_ref: txRef,
@@ -189,27 +214,24 @@ app.get('/api/payments/status', async (req, res) => {
       return res.status(400).json({ success: false, error: 'tx_ref is required' });
     }
     
-    const flwSecretKey = process.env.FLW_SECRET_KEY;
-    const isRealFlutterwave = flwSecretKey && 
-                              flwSecretKey !== 'FLWSECK_TEST-xxxxxxxxxxxxxxxx-X' && 
-                              flwSecretKey.trim() !== '';
+    const accessToken = await getFlutterwaveV4AccessToken();
+    const isRealFlutterwave = !!accessToken;
 
-    if (isRealFlutterwave && !tx_ref.startsWith('DEMO-')) {
-      // We can verify using transactionId if provided, or fallback to tx_ref
+    if (isRealFlutterwave && accessToken && !tx_ref.startsWith('DEMO-')) {
       let verificationUrl = '';
       if (transactionId) {
-        verificationUrl = `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`;
+        verificationUrl = `https://api.flutterwave.com/v4/transactions/${transactionId}/verify`;
       } else {
-        verificationUrl = `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(tx_ref)}`;
+        verificationUrl = `https://api.flutterwave.com/v4/transactions/verify_by_reference?tx_ref=${encodeURIComponent(tx_ref)}`;
       }
 
-      console.log(`Verifying actual transaction via Flutterwave standard node: ${verificationUrl}`);
+      console.log(`Verifying actual transaction via Flutterwave v4 OAuth node: ${verificationUrl}`);
       try {
         const response = await fetch(verificationUrl, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${flwSecretKey}`
+            'Authorization': `Bearer ${accessToken}`
           }
         });
 
@@ -221,11 +243,10 @@ app.get('/api/payments/status', async (req, res) => {
           console.error('Failed to parse verification response as JSON:', responseText.slice(0, 500));
         }
 
-        if (verification && verification.status === 'success' && verification.data) {
+        if (verification && (verification.status === 'success' || verification.success) && verification.data) {
           const remoteTx = verification.data;
           
-          if (remoteTx.status === 'successful') {
-            // Cache successful state on server
+          if (remoteTx.status === 'successful' || remoteTx.status === 'SUCCESSFUL') {
             const existing = simulatedTransactions.get(tx_ref);
             if (existing) {
               existing.status = 'SUCCESSFUL';
@@ -247,38 +268,22 @@ app.get('/api/payments/status', async (req, res) => {
             return res.json({
               success: true,
               status: 'SUCCESSFUL',
-              reason: 'Transaction verified by Flutterwave secure ledger.',
+              reason: 'Transaction verified by Flutterwave v4 secure ledger.',
               simulated: false,
               amount: remoteTx.amount,
               reference: remoteTx.tx_ref
             });
-          } else if (remoteTx.status === 'pending') {
+          } else if (remoteTx.status === 'pending' || remoteTx.status === 'PENDING') {
             return res.json({
               success: true,
               status: 'PENDING',
               reason: 'Transaction is undergoing secure validation.',
               simulated: false
             });
-          } else {
-            // Cache failed state on server
-            const existing = simulatedTransactions.get(tx_ref);
-            if (existing) {
-              existing.status = 'FAILED';
-              simulatedTransactions.set(tx_ref, existing);
-            }
-
-            return res.json({
-              success: true,
-              status: 'FAILED',
-              reason: 'Transaction was cancelled or declined.',
-              simulated: false
-            });
           }
-        } else {
-          console.log(`Flutterwave returned unverified status or error: ${(verification && verification.message) || responseText.slice(0, 200)}`);
         }
-      } catch (err) {
-        console.error('Verify Flutterwave endpoint failed:', err);
+      } catch (verErr) {
+        console.warn('Flutterwave v4 verification lookup error:', verErr);
       }
     }
     

@@ -449,19 +449,6 @@ export interface FirebaseUserProfile {
 export async function getUserProfile(uid: string): Promise<FirebaseUserProfile | null> {
   if (!uid) return null;
 
-  // 1. Always check LocalStorage fallback first for fast responsive profile retrieval and role consistency across devices
-  try {
-    const cachedFallback = localStorage.getItem(`tambu_profile_fallback_${uid}`);
-    if (cachedFallback) {
-      const parsed = JSON.parse(cachedFallback);
-      if (parsed && parsed.role) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error("Failed to read profile fallback from LocalStorage:", e);
-  }
-
   if (uid.startsWith('sandbox_') || uid.startsWith('demo_') || uid === 'admin_tambu') {
     const isOwner = uid.includes('owner') || uid === 'admin_tambu' || uid.startsWith('sandbox_');
     const createdAtDate = new Date();
@@ -482,7 +469,6 @@ export async function getUserProfile(uid: string): Promise<FirebaseUserProfile |
       subscriptionExpiresAt: null
     };
 
-    // Save fallback
     try {
       localStorage.setItem(`tambu_profile_fallback_${uid}`, JSON.stringify(defaultProfile));
     } catch (e) {}
@@ -490,7 +476,7 @@ export async function getUserProfile(uid: string): Promise<FirebaseUserProfile |
     return defaultProfile;
   }
 
-  // 2. Try Supabase profiles table
+  // 1. ALWAYS query Supabase profiles table first for true database-stored role across all devices
   const client = getSupabaseClient();
   if (client) {
     try {
@@ -522,6 +508,7 @@ export async function getUserProfile(uid: string): Promise<FirebaseUserProfile |
     }
   }
 
+  // 2. Try Firestore users collection
   const path = `users/${uid}`;
   try {
     const docSnap = await getDoc(doc(db, 'users', uid));
@@ -532,10 +519,24 @@ export async function getUserProfile(uid: string): Promise<FirebaseUserProfile |
       } catch (e) {}
       return profile;
     }
-    return null;
   } catch (error) {
-    return null;
+    // ignore
   }
+
+  // 3. Fallback to LocalStorage fallback if network/db query failed
+  try {
+    const cachedFallback = localStorage.getItem(`tambu_profile_fallback_${uid}`);
+    if (cachedFallback) {
+      const parsed = JSON.parse(cachedFallback);
+      if (parsed && parsed.role) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error("Failed to read profile fallback from LocalStorage:", e);
+  }
+
+  return null;
 }
 
 export async function saveUserProfile(profile: FirebaseUserProfile): Promise<void> {
