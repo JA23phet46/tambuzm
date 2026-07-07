@@ -57,27 +57,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
     sessionsRef.current = sessions;
   }, [sessions]);
 
-  if (isAdmin) {
-    return (
-      <div className="max-w-xl mx-auto bg-white p-8 rounded-2xl border border-[#e4e2e2] shadow-md my-12 text-center space-y-4">
-        <div className="w-16 h-16 bg-[#ffdad8] text-[#b52330] rounded-2xl flex items-center justify-center text-3xl mx-auto pb-0.5 select-none animate-pulse">
-          💬
-        </div>
-        <h2 className="text-xl font-bold text-[#1b1c1c]">Chats Restricted</h2>
-        <p className="text-xs sm:text-sm text-[#5a403f] leading-relaxed">
-          As an Administrator, chat options are disabled.
-          Chat communication is kept private and secure, exclusively between <strong>Property Seekers</strong> and verified <strong>Property Owners</strong>.
-        </p>
-        <button
-          onClick={onBack}
-          className="bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-2.5 px-6 rounded-xl active:scale-95 transition-all shadow-md cursor-pointer"
-        >
-          Return to Dashboard
-        </button>
-      </div>
-    );
-  }
-
   const activeSessionIdRef = useRef<string>('');
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId;
@@ -337,7 +316,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     return () => {
       unsub();
     };
-  }, [activeProperty, currentUserId, currentUserName, isAdmin]);
+  }, [activeProperty?.id, currentUserId, currentUserName, isAdmin]);
 
   // Scroll viewport down upon receipt of any new messages
   useEffect(() => {
@@ -423,6 +402,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
       }
     }
   };
+
+  if (isAdmin) {
+    return (
+      <div className="max-w-xl mx-auto bg-white p-8 rounded-2xl border border-[#e4e2e2] shadow-md my-12 text-center space-y-4">
+        <div className="w-16 h-16 bg-[#ffdad8] text-[#b52330] rounded-2xl flex items-center justify-center text-3xl mx-auto pb-0.5 select-none animate-pulse">
+          💬
+        </div>
+        <h2 className="text-xl font-bold text-[#1b1c1c]">Chats Restricted</h2>
+        <p className="text-xs sm:text-sm text-[#5a403f] leading-relaxed">
+          As an Administrator, chat options are disabled.
+          Chat communication is kept private and secure, exclusively between <strong>Property Seekers</strong> and verified <strong>Property Owners</strong>.
+        </p>
+        <button
+          onClick={onBack}
+          className="bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-2.5 px-6 rounded-xl active:scale-95 transition-all shadow-md cursor-pointer"
+        >
+          Return to Dashboard
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-md flex h-[calc(100vh-10rem)] md:h-[620px] min-h-[480px] animate-fade-in my-2">

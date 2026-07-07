@@ -569,7 +569,7 @@ export default function App() {
     checkExpiration();
     const interval = setInterval(checkExpiration, 1000 * 30); // Check every 30 seconds
     return () => clearInterval(interval);
-  }, [isLoggedIn, isSubscribed, subscriptionExpiry, trialEndsAt, isSubscriptionExpired]);
+  }, [isLoggedIn, isSubscribed, subscriptionExpiry, trialEndsAt]);
 
   // --- Check for shared direct property listing ID on mount and when properties load ---
   useEffect(() => {
@@ -865,7 +865,7 @@ export default function App() {
     });
 
     return () => unsubscribePayments();
-  }, [isLoggedIn, currentUser, isAdmin]);
+  }, [isLoggedIn, currentUser?.uid, isAdmin]);
 
   // Real-time Support feedback messages synchronization
   useEffect(() => {
@@ -939,7 +939,7 @@ export default function App() {
     return () => {
       unsub();
     };
-  }, [isLoggedIn, currentUser]);
+  }, [isLoggedIn, currentUser?.uid]);
 
   // --- Navigation engine helper callbacks ---
   const navigateTo = (page: string, isSubscription: boolean = false) => {
