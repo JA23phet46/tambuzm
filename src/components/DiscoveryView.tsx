@@ -141,10 +141,7 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
         {/* Quick Filter Pill Chips */}
         <div className="flex gap-2.5 mt-5 overflow-x-auto no-scrollbar pb-1 justify-start sm:justify-center">
           {[
-            { label: 'All Listings', icon: Home, value: [] },
-            { label: 'Apartments', icon: Building2, value: [PropertyType.APARTMENT] },
-            { label: 'Student Housing', icon: GraduationCap, value: [PropertyType.BOARDING_HOUSE] },
-            { label: 'Houses', icon: Sparkles, value: [PropertyType.HOUSE] },
+            { label: 'Boarding House', icon: GraduationCap, value: [PropertyType.BOARDING_HOUSE] },
           ].map((chip, idx) => {
             const isActive = chip.value.length === 0 
               ? selectedPropertyTypes.length === 0 

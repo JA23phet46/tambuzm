@@ -200,62 +200,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {userRole === UserRole.OWNER ? (
         <div className="space-y-10">
           
-          {/* SUBSCRIPTION WARNING BANNERS & TRIAL ALERTS */}
-          {hasTrial && trialDaysRemaining !== null && trialDaysRemaining > 0 && (
-            <div className="bg-[#fff4e5] border-2 border-[#ffb74d]/40 rounded-2xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-sm border-l-4 border-l-[#ff9800]">
-              <div className="space-y-1">
-                <h4 className="font-extrabold text-sm text-[#e65100] flex items-center gap-1.5">
-                  ⏳ {trialDaysRemaining}-Day Free Trial Active
-                </h4>
-                <p className="text-xs text-[#5d4037] leading-relaxed">
-                  As a new property owner, you have <span className="font-bold">{trialDaysRemaining} days remaining</span> in your free trial. Subscribe to the standard monthly plan (K100) to keep your property placements active and searchable by renters online.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onPaySubscription}
-                className="bg-[#ff9800] hover:bg-[#f57c00] text-white text-xs font-bold py-2.5 px-4 rounded-xl transition-all active:scale-95 shrink-0 shadow-sm cursor-pointer"
-              >
-                Subscribe Now (K100/mo)
-              </button>
-            </div>
-          )}
-
-          {!isAdmin && isSubscribed && subscriptionDaysRemaining !== null && (
-            <div className={`bg-[#e8f5e9] border-[#c2e4c6] border-2 rounded-2xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-sm border-l-4 border-l-emerald-600 ${subscriptionDaysRemaining <= 5 ? 'border-[#ef9a9a]/60 bg-[#fff4e5] border-l-[#ff9800]' : 'border-green-200'}`}>
-              <div className="space-y-1">
-                <h4 className={`font-extrabold text-sm flex items-center gap-1.5 ${subscriptionDaysRemaining <= 5 ? 'text-[#e65100]' : 'text-emerald-800'}`}>
-                  🛡️ {subscriptionDaysRemaining <= 5 ? `Subscription Expiring Soon — Only ${subscriptionDaysRemaining} Days Left!` : `Standard Subscription Plan Active — ${subscriptionDaysRemaining} Days Remaining`}
-                </h4>
-                <p className="text-xs text-[#424242] leading-relaxed">
-                  Your listed properties are currently <span className="font-bold text-emerald-900">active, verified, and searchable</span> across the entire platform. Your subscription is set to expire on <span className="font-bold">{subscriptionExpiry}</span>. Renew anytime to extend your placements smoothly.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onPaySubscription}
-                className={`text-white text-xs font-bold py-2.5 px-4 rounded-xl transition-all active:scale-95 shrink-0 shadow-sm cursor-pointer ${subscriptionDaysRemaining <= 5 ? 'bg-[#ff9800] hover:bg-[#f57c00]' : 'bg-emerald-600 hover:bg-emerald-700'}`}
-              >
-                Extend Subscription (K100)
-              </button>
-            </div>
-          )}
-
-          {!isAdmin && ((hasTrial && isTrialExpired) || isSubscriptionExpired) && (
-            <div className="bg-[#ffdad8] border-2 border-[#b52330] rounded-2xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 animate-pulse">
-              <div className="space-y-1">
-                <h4 className="font-extrabold text-sm text-[#b52330]">⚠️ Your Free Trial / Subscription has Expired</h4>
-                <p className="text-xs text-[#5a403f] leading-relaxed">
-                  Your listed properties are currently <span className="font-bold underline">inactive</span>. Please pay K100 monthly subscription manually through mobile money number <span className="font-mono font-bold text-[#b52330]">0974661185</span> (Japhet Ndafi). Failure to do so will result in property deletion by Super Admin.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onPaySubscription}
-                className="bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-2.5 px-4 rounded-xl transition-all active:scale-95 shrink-0 shadow-sm cursor-pointer"
-              >
-                Pay Manual K100 Subscription
-              </button>
+          {/* PAYMENT MANAGEMENT SECTION */}
+          {!isAdmin && (
+            <div className="bg-white border border-[#e4e2e2] rounded-2xl p-5 shadow-sm space-y-2">
+              <h4 className="font-extrabold text-sm text-[#1b1c1c] flex items-center gap-1.5">
+                💳 Payment (K100/mo Standard Plan)
+              </h4>
+              <p className="text-xs text-[#5a403f] leading-relaxed">
+                Users can list property for a subscription fee of K100/month failure to which they can have their property removed (Mobile money number <span className="font-mono font-bold text-[#b52330]">0974661185</span> - Japhet Ndafi).
+              </p>
             </div>
           )}
           
@@ -326,40 +279,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
               {/* SUBSCRIPTION STATUS CARD */}
               <div 
-                onClick={onPaySubscription}
-                className={`bg-white p-5 rounded-2xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between group overflow-hidden relative ${
-                  isTrialExpired || isSubscriptionExpired 
-                    ? 'border-[#b52330] hover:bg-[#ffdad8]/5' 
-                    : 'border-[#e4e2e2] hover:border-[#b52330] hover:shadow-sm'
-                }`}
+                className="bg-white p-5 rounded-2xl border-2 border-[#e4e2e2] select-none flex flex-col justify-between overflow-hidden relative shadow-sm"
               >
                 <div className="space-y-1.5 w-full">
                   <div className="flex justify-between items-start">
                     <span className="text-[10px] uppercase font-bold text-[#5a403f] tracking-wide block">Tambu Subscription</span>
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shadow-sm transition-transform group-hover:scale-105 ${
-                      isTrialExpired || isSubscriptionExpired ? 'bg-[#ffdad8] text-[#b52330]' : 'bg-[#78fac4] text-[#002115]'
-                    }`}>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shadow-sm bg-[#78fac4] text-[#002115]">
                       💳
                     </div>
                   </div>
-                  {isSubscribed ? (
-                    <span className="text-[10px] font-extrabold text-[#006c4c] bg-[#78fac4] px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-                      Active Subscriber ({subscriptionDaysRemaining !== null ? `${subscriptionDaysRemaining}d left` : '🛡️'})
-                    </span>
-                  ) : isTrialActive ? (
-                    <span className="text-[10px] font-extrabold text-[#e65100] bg-[#fff4e5] border border-[#ffb74d]/50 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-                      Free Trial Active ({trialDaysRemaining}d)
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-extrabold text-[#b52330] bg-[#ffdad8] px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-                      Expired (Properties Hidden) ⚠️
-                    </span>
-                  )}
+                  <span className="text-[10px] font-extrabold text-[#006c4c] bg-[#78fac4] px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                    Active Lister (Free to List)
+                  </span>
                   <div className="text-[10px] font-bold text-gray-500 block">
-                    {isSubscribed ? `Expires: ${subscriptionExpiry} (${subscriptionDaysRemaining !== null ? `${subscriptionDaysRemaining} days remaining` : ''})` : 'Subscribe to activate searches'}
+                    Verified manually by admin with record books
                   </div>
-                  <div className="text-[10px] font-black text-[#b52330] flex items-center gap-0.5 group-hover:underline">
-                    Pay K100 standard plan →
+                  <div className="text-[10px] font-black text-[#006c4c] flex items-center gap-0.5">
+                    Standard Plan (K100/mo) ✓
                   </div>
                 </div>
               </div>

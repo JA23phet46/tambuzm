@@ -2200,7 +2200,7 @@ export default function App() {
                   subscriptionExpiry={subscriptionExpiry}
                   onPaySubscription={handlePaySubscription}
                   onToggleSubscriptionExpirySimulated={handleToggleSubscriptionExpirySimulated}
-                  isAdmin={isAdmin && adminModeActive}
+                  isAdmin={isAdmin}
                   trialEndsAt={trialEndsAt}
                   isSubscribed={isSubscribed}
                   rentPayments={rentPayments}
