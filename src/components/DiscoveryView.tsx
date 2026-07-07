@@ -577,14 +577,6 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
         )}
       </section>
 
-      {/* Floating Action Button (List Property) for Owners */}
-      <button
-        onClick={() => onNavigate('add-property')}
-        className="fixed bottom-20 right-4 sm:bottom-8 sm:right-8 bg-[#b52330] hover:bg-[#9a1c26] text-white py-4 px-6 rounded-full flex items-center gap-2 transition-all active:scale-95 shadow-xl hover:shadow-2xl z-40"
-      >
-        <span className="text-lg font-bold">+</span>
-        <span className="text-xs sm:text-sm font-bold tracking-wide">{isLoggedIn ? 'List Property' : 'Sign In to List'}</span>
-      </button>
     </div>
   );
 };
