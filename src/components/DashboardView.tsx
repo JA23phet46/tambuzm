@@ -30,6 +30,7 @@ interface DashboardViewProps {
   onTogglePropertySpotlight?: (id: string, currentSpotlight: boolean) => void;
   onTogglePropertyVerified?: (id: string, currentVerified: boolean) => void;
   supportMessages?: SupportMessage[];
+  onSwitchRole?: (role: UserRole) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -56,7 +57,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onTogglePropertyAvailability = (id: string, currentAvailable: boolean) => {},
   onTogglePropertySpotlight = (id: string, currentSpotlight: boolean) => {},
   onTogglePropertyVerified = (id: string, currentVerified: boolean) => {},
-  supportMessages = []
+  supportMessages = [],
+  onSwitchRole = (role: UserRole) => {}
 }) => {
   const firstName = userName.split(' ')[0] || 'Friend';
   
@@ -168,6 +170,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 : 'Browse personalized recommendations, saved listings shortcuts, and active search histories.'
             }
           </p>
+
+          {/* Quick Role Switcher for instant Seeker <-> Lister toggling */}
+          <div className="flex items-center gap-2 bg-white/20 p-1.5 rounded-xl backdrop-blur-sm self-start inline-flex mt-3 border border-white/20">
+            <span className="text-[10px] font-bold text-white/90 pl-1 uppercase tracking-wider">Account Mode:</span>
+            <button
+              type="button"
+              onClick={() => onSwitchRole(UserRole.SEEKER)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                userRole === UserRole.SEEKER ? 'bg-white text-[#b52330] shadow-sm font-black' : 'text-white hover:bg-white/10'
+              }`}
+            >
+              Seeker Mode
+            </button>
+            <button
+              type="button"
+              onClick={() => onSwitchRole(UserRole.OWNER)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                userRole === UserRole.OWNER ? 'bg-white text-[#b52330] shadow-sm font-black' : 'text-white hover:bg-white/10'
+              }`}
+            >
+              Lister (Owner) Mode
+            </button>
+          </div>
         </div>
       </section>
 

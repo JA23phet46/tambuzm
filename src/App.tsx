@@ -1485,6 +1485,24 @@ export default function App() {
     }
   };
 
+  const handleSwitchRole = async (targetRole: UserRole) => {
+    setUserRole(targetRole);
+    localStorage.setItem('tambu_role', targetRole);
+    if (auth.currentUser) {
+      try {
+        const profile = await getUserProfile(auth.currentUser.uid);
+        if (profile) {
+          profile.role = targetRole;
+          await saveUserProfile(profile);
+        }
+      } catch (e) {
+        console.warn("Failed to update profile role in backend:", e);
+      }
+    }
+    navigateTo(targetRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
+    triggerToast(`Switched to ${targetRole === UserRole.OWNER ? 'Lister (Owner)' : 'Seeker'} mode`, 'success');
+  };
+
   // --- Property creation by owners ---
   const handlePublishListing = async (input: NewListingInput) => {
     if (!currentUser) {
@@ -2203,6 +2221,7 @@ export default function App() {
                   onTogglePropertySpotlight={handleTogglePropertySpotlight}
                   onTogglePropertyVerified={handleTogglePropertyVerified}
                   supportMessages={supportMessages}
+                  onSwitchRole={handleSwitchRole}
                 />
               );
 
@@ -2234,6 +2253,7 @@ export default function App() {
                   onTogglePropertySpotlight={handleTogglePropertySpotlight}
                   onTogglePropertyVerified={handleTogglePropertyVerified}
                   supportMessages={supportMessages}
+                  onSwitchRole={handleSwitchRole}
                 />
               );
 

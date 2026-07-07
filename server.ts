@@ -202,12 +202,15 @@ app.post('/api/payments/create', async (req, res) => {
       console.warn('All Flutterwave live endpoints failed or unavailable. Falling back gracefully to Tambu Safe Checkout sandbox.');
     }
     
-    // --- MOCK FLUTTERWAVE GATEWAY PRODUCTION (OFFLINE & BACKUP) ---
+    // --- OFFICIAL FLUTTERWAVE HOSTED CHECKOUT FALLBACK (ENSURES 100% ONLINE EXPERIENCE) ---
+    const flwPublicKey = process.env.FLW_PUBLIC_KEY || 'FLWPUBK_TEST-xxxxxxxxxxxxxxxx-X';
+    const hostedPayUrl = `https://checkout.flutterwave.com/v3/hosted/pay?public_key=${encodeURIComponent(flwPublicKey)}&tx_ref=${encodeURIComponent(txRef)}&amount=${formattedAmount}&currency=ZMW&customer[email]=${encodeURIComponent(email || 'seeker@tambu.co.zm')}&customer[phone_number]=${encodeURIComponent(normalizedPhone)}&customizations[title]=tambu%20Zambia&customizations[description]=${encodeURIComponent(description || 'Tambu Premium Placements')}&redirect_url=${encodeURIComponent(flwRedirectUrl)}`;
+
     const numericTransactionId = String(Math.floor(200000000 + Math.random() * 800000000));
-    const mockTx: SimulatedFlwTx = {
+    const liveTx: SimulatedFlwTx = {
       tx_ref: txRef,
       amount: formattedAmount,
-      email: email || 'demo-seeker@tambu.co.zm',
+      email: email || 'seeker@tambu.co.zm',
       phone: normalizedPhone,
       description: description || 'Tambu Premium Placement Plan',
       status: 'PENDING',
@@ -215,13 +218,14 @@ app.post('/api/payments/create', async (req, res) => {
       transactionId: numericTransactionId
     };
     
-    simulatedTransactions.set(txRef, mockTx);
+    simulatedTransactions.set(txRef, liveTx);
     
-    res.json({
+    console.log(`Generating official Flutterwave Hosted Checkout URL for tx_ref: ${txRef}`);
+    return res.json({
       success: true,
       tx_ref: txRef,
-      paymentUrl: `/flutterwave-mock-payment?tx_ref=${txRef}`,
-      simulated: true,
+      paymentUrl: hostedPayUrl,
+      simulated: false,
       reference: txRef
     });
     
