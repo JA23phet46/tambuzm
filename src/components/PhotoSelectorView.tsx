@@ -157,7 +157,7 @@ export const PhotoSelectorView: React.FC<PhotoSelectorViewProps> = ({
     setActiveTab('curated');
   };
 
-  // File system upload
+  // File system upload with compression & resizing to prevent mobile white screen & quota errors
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const files = Array.from(e.target.files);
@@ -165,23 +165,57 @@ export const PhotoSelectorView: React.FC<PhotoSelectorViewProps> = ({
     files.forEach((file) => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        const base64String = reader.result as string;
-        if (base64String) {
-          setCustomPool((prev) => {
-            const updated = [base64String, ...prev];
-            try {
-              localStorage.setItem('tambu_custom_uploads', JSON.stringify(updated));
-            } catch (err) {
-              console.warn("Storage quota exceeded or storage unavailable for custom uploads:", err);
+        const resultString = reader.result as string;
+        if (!resultString) return;
+
+        // Compress image using canvas to prevent mobile memory & quota crashes
+        const img = new Image();
+        img.src = resultString;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const MAX_DIM = 1000;
+
+          if (width > height) {
+            if (width > MAX_DIM) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
             }
-            return updated;
-          });
-          // Auto select the newly uploaded file!
-          setSelected((prev) => {
-            if (prev.includes(base64String)) return prev;
-            return [...prev, base64String];
-          });
-        }
+          } else {
+            if (height > MAX_DIM) {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.82);
+
+            setCustomPool((prev) => {
+              const updated = [compressedBase64, ...prev].slice(0, 15);
+              try {
+                localStorage.setItem('tambu_custom_uploads', JSON.stringify(updated));
+              } catch (err) {
+                console.warn("Storage quota exceeded or storage unavailable for custom uploads:", err);
+              }
+              return updated;
+            });
+
+            setSelected((prev) => {
+              if (prev.includes(compressedBase64)) return prev;
+              return [...prev, compressedBase64];
+            });
+          }
+        };
+        img.onerror = () => {
+          setCustomPool((prev) => [resultString, ...prev].slice(0, 15));
+          setSelected((prev) => [...prev, resultString]);
+        };
       };
       reader.readAsDataURL(file as File);
     });
