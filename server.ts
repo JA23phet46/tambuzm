@@ -26,10 +26,10 @@ const simulatedTransactions = new Map<string, SimulatedFlwTx>();
 
 // --- Flutterwave Base API URL Resolution ---
 const FLW_BASE_URL = process.env.NODE_ENV === 'production'
-  ? 'https://f4bexperience.flutterwave.com'
-  : 'https://developersandbox-api.flutterwave.com';
+  ? 'https://api.flutterwave.com'
+  : 'https://api.flutterwave.com';
 
-// --- Flutterwave v4 / v3 Token & Secret Key Resolution ---
+// --- Flutterwave v4 Token & Secret Key Resolution ---
 async function getFlutterwaveV4AccessToken(): Promise<string | null> {
   const secretKey = process.env.FLW_SECRET_KEY;
   if (secretKey && secretKey !== 'FLWSECK_TEST-xxxxxxxxxxxxxxxx-X' && secretKey.trim() !== '') {
@@ -44,11 +44,7 @@ async function getFlutterwaveV4AccessToken(): Promise<string | null> {
 
   const tokenEndpoints = [
     `${FLW_BASE_URL}/v4/oauth/token`,
-    `${FLW_BASE_URL}/v3/oauth/token`,
-    `${FLW_BASE_URL}/oauth/token`,
-    'https://api.flutterwave.com/v4/oauth/token',
-    'https://api.flutterwave.com/v3/oauth/token',
-    'https://f4bexperience.flutterwave.com/v4/oauth/token'
+    'https://api.flutterwave.com/v4/oauth/token'
   ];
 
   for (const tokenEndpoint of tokenEndpoints) {
@@ -70,7 +66,7 @@ async function getFlutterwaveV4AccessToken(): Promise<string | null> {
         if (token) return token;
       }
     } catch (err) {
-      console.warn(`Flutterwave OAuth token fetch failed at ${tokenEndpoint}:`, err);
+      console.warn(`Flutterwave v4 OAuth token fetch failed at ${tokenEndpoint}:`, err);
     }
   }
   return null;
@@ -157,12 +153,7 @@ app.post('/api/payments/create', async (req, res) => {
 
       const paymentEndpoints = [
         `${FLW_BASE_URL}/v4/payments`,
-        `${FLW_BASE_URL}/v3/payments`,
-        `${FLW_BASE_URL}/payments`,
-        'https://api.flutterwave.com/v4/payments',
-        'https://api.flutterwave.com/v3/payments',
-        'https://f4bexperience.flutterwave.com/v4/payments',
-        'https://f4bexperience.flutterwave.com/payments'
+        'https://api.flutterwave.com/v4/payments'
       ];
 
       for (const endpoint of paymentEndpoints) {
@@ -272,12 +263,12 @@ app.get('/api/payments/status', async (req, res) => {
       if (transactionId) {
         verificationUrls = [
           `${FLW_BASE_URL}/v4/transactions/${transactionId}/verify`,
-          `${FLW_BASE_URL}/v3/transactions/${transactionId}/verify`
+          `https://api.flutterwave.com/v4/transactions/${transactionId}/verify`
         ];
       } else {
         verificationUrls = [
           `${FLW_BASE_URL}/v4/transactions/verify_by_reference?tx_ref=${encodeURIComponent(tx_ref)}`,
-          `${FLW_BASE_URL}/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(tx_ref)}`
+          `https://api.flutterwave.com/v4/transactions/verify_by_reference?tx_ref=${encodeURIComponent(tx_ref)}`
         ];
       }
 
