@@ -24,8 +24,13 @@ interface SimulatedFlwTx {
 }
 const simulatedTransactions = new Map<string, SimulatedFlwTx>();
 
-// --- Flutterwave v4 OAuth 2.0 Token Generation ---
+// --- Flutterwave v4 / v3 Token & Secret Key Resolution ---
 async function getFlutterwaveV4AccessToken(): Promise<string | null> {
+  const secretKey = process.env.FLW_SECRET_KEY;
+  if (secretKey && secretKey !== 'FLWSECK_TEST-xxxxxxxxxxxxxxxx-X' && secretKey.trim() !== '') {
+    return secretKey;
+  }
+
   const clientId = process.env.FLW_CLIENT_ID;
   const clientSecret = process.env.FLW_CLIENT_SECRET;
   if (!clientId || !clientSecret || clientId.includes('placeholder') || clientSecret.includes('placeholder') || clientId.trim() === '') {
@@ -48,7 +53,7 @@ async function getFlutterwaveV4AccessToken(): Promise<string | null> {
       return data.access_token || data.token || null;
     }
   } catch (err) {
-    console.warn("Flutterwave v4 OAuth token fetch failed:", err);
+    console.warn("Flutterwave OAuth token fetch failed:", err);
   }
   return null;
 }
@@ -129,50 +134,63 @@ app.post('/api/payments/create', async (req, res) => {
         }
       };
 
-      try {
-        const response = await fetch('https://api.flutterwave.com/v4/payments', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`
-          },
-          body: JSON.stringify(flwPayload)
+      let paymentLink: string | null = null;
+      let usedEndpoint = '';
+
+      for (const endpoint of ['https://api.flutterwave.com/v4/payments', 'https://api.flutterwave.com/v3/payments']) {
+        try {
+          console.log(`Trying Flutterwave endpoint: ${endpoint}`);
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`
+            },
+            body: JSON.stringify(flwPayload)
+          });
+
+          const responseText = await response.text();
+          let data: any = null;
+          try {
+            data = JSON.parse(responseText);
+          } catch (parseErr) {
+            console.error(`Failed to parse Flutterwave response from ${endpoint}:`, responseText.slice(0, 300));
+          }
+
+          if (data && (data.status === 'success' || data.success) && data.data && data.data.link) {
+            paymentLink = data.data.link;
+            usedEndpoint = endpoint;
+            break;
+          } else {
+            console.warn(`Flutterwave rejected payment at ${endpoint}:`, (data && data.message) || responseText.slice(0, 300));
+          }
+        } catch (epErr) {
+          console.warn(`Flutterwave request error at ${endpoint}:`, epErr);
+        }
+      }
+
+      if (paymentLink) {
+        simulatedTransactions.set(txRef, {
+          tx_ref: txRef,
+          amount: formattedAmount,
+          email: email || 'seeker@tambu.co.zm',
+          phone: normalizedPhone,
+          description: description || 'Tambu Premium Placements and Boarding Services',
+          status: 'PENDING',
+          createdAt: Date.now(),
+          transactionId: ''
         });
 
-        const responseText = await response.text();
-        let data: any = null;
-        try {
-          data = JSON.parse(responseText);
-        } catch (parseErr) {
-          console.error('Failed to parse Flutterwave v4 response as JSON:', responseText.slice(0, 500));
-        }
-
-        if (data && (data.status === 'success' || data.success) && data.data && data.data.link) {
-          simulatedTransactions.set(txRef, {
-            tx_ref: txRef,
-            amount: formattedAmount,
-            email: email || 'seeker@tambu.co.zm',
-            phone: normalizedPhone,
-            description: description || 'Tambu Premium Placements and Boarding Services',
-            status: 'PENDING',
-            createdAt: Date.now(),
-            transactionId: ''
-          });
-
-          return res.json({
-            success: true,
-            tx_ref: txRef,
-            paymentUrl: data.data.link,
-            simulated: false,
-            reference: txRef
-          });
-        } else {
-          console.error('Flutterwave v4 rejected payment generation:', (data && data.message) || data || responseText.slice(0, 500));
-        }
-      } catch (flwErr) {
-        console.error('Flutterwave v4 endpoint request error:', flwErr);
+        console.log(`Successfully generated Flutterwave payment link via ${usedEndpoint}`);
+        return res.json({
+          success: true,
+          tx_ref: txRef,
+          paymentUrl: paymentLink,
+          simulated: false,
+          reference: txRef
+        });
       }
-      console.warn('Falling back gracefully to local high-fidelity Flutterwave checkout emulator');
+      console.warn('All Flutterwave live endpoints failed or unavailable. Falling back gracefully to Tambu Safe Checkout sandbox.');
     }
     
     // --- MOCK FLUTTERWAVE GATEWAY PRODUCTION (OFFLINE & BACKUP) ---
