@@ -15,7 +15,7 @@ import {
 import firebaseConfig from '../firebase-applet-config.json';
 import { Property, Activity, SearchHistory, BillingRecord, UserRole, RentPayment, SupportMessage } from './types';
 import { INITIAL_PROPERTIES } from './data';
-import { getSupabaseClient, updatePropertyInSupabase, deletePropertyFromSupabase, isSupabaseConfigured } from './supabase';
+import { getSupabaseClient, savePropertyToSupabase, updatePropertyInSupabase, deletePropertyFromSupabase, isSupabaseConfigured } from './supabase';
 export { getSupabaseClient };
 
 // Support Vercel deployment: load from environment variables first, fall back to development configuration
@@ -741,6 +741,12 @@ export async function createPropertyListing(property: Property): Promise<void> {
     }
   } catch (e) {}
 
+  try {
+    await savePropertyToSupabase(property);
+  } catch (err) {
+    console.warn("Supabase property save failed:", err);
+  }
+
   const path = `properties/${property.id}`;
   try {
     await setDoc(doc(db, 'properties', property.id), {
@@ -833,6 +839,13 @@ export async function updatePropertyListing(propertyId: string, fields: Partial<
 export async function addSearchHistory(uid: string, search: SearchHistory): Promise<void> {
   if (!uid || uid.startsWith('demo_') || uid.startsWith('sandbox_') || uid === 'admin_tambu') {
     console.log('Simulated search history added:', search);
+    try {
+      const key = `tambu_searches_${uid}`;
+      const cached = localStorage.getItem(key);
+      const list = cached ? JSON.parse(cached) : [];
+      list.unshift(search);
+      localStorage.setItem(key, JSON.stringify(list.slice(0, 20)));
+    } catch (e) {}
     return;
   }
   const path = `users/${uid}/searches/${search.id}`;
@@ -843,12 +856,25 @@ export async function addSearchHistory(uid: string, search: SearchHistory): Prom
       createdAt: new Date().toISOString()
     });
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    console.warn("Firestore search history write failed, using local cache:", error);
+    try {
+      const key = `tambu_searches_${uid}`;
+      const cached = localStorage.getItem(key);
+      const list = cached ? JSON.parse(cached) : [];
+      list.unshift(search);
+      localStorage.setItem(key, JSON.stringify(list.slice(0, 20)));
+    } catch (e) {}
   }
 }
 
 export async function getSearchHistory(uid: string): Promise<SearchHistory[]> {
-  if (!uid || uid.startsWith('demo_') || uid.startsWith('sandbox_')) {
+  if (!uid) return [];
+  if (uid.startsWith('demo_') || uid.startsWith('sandbox_') || uid === 'admin_tambu') {
+    try {
+      const key = `tambu_searches_${uid}`;
+      const cached = localStorage.getItem(key);
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
     return [];
   }
   const path = `users/${uid}/searches`;
@@ -860,7 +886,12 @@ export async function getSearchHistory(uid: string): Promise<SearchHistory[]> {
     });
     return searches;
   } catch (error) {
-    handleFirestoreError(error, OperationType.GET, path);
+    console.warn("Firestore search history get failed, using local cache:", error);
+    try {
+      const key = `tambu_searches_${uid}`;
+      const cached = localStorage.getItem(key);
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
     return [];
   }
 }
@@ -869,6 +900,13 @@ export async function getSearchHistory(uid: string): Promise<SearchHistory[]> {
 export async function addBillingRecord(uid: string, record: BillingRecord): Promise<void> {
   if (!uid || uid.startsWith('demo_') || uid.startsWith('sandbox_') || uid === 'admin_tambu') {
     console.log('Simulated billing record added:', record);
+    try {
+      const key = `tambu_billing_${uid}`;
+      const cached = localStorage.getItem(key);
+      const list = cached ? JSON.parse(cached) : [];
+      list.unshift(record);
+      localStorage.setItem(key, JSON.stringify(list));
+    } catch (e) {}
     return;
   }
   const path = `users/${uid}/billing_records/${record.id}`;
@@ -882,12 +920,25 @@ export async function addBillingRecord(uid: string, record: BillingRecord): Prom
       status: record.status
     });
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    console.warn("Firestore billing write failed, using local cache:", error);
+    try {
+      const key = `tambu_billing_${uid}`;
+      const cached = localStorage.getItem(key);
+      const list = cached ? JSON.parse(cached) : [];
+      list.unshift(record);
+      localStorage.setItem(key, JSON.stringify(list));
+    } catch (e) {}
   }
 }
 
 export async function getBillingRecords(uid: string): Promise<BillingRecord[]> {
-  if (!uid || uid.startsWith('demo_') || uid.startsWith('sandbox_')) {
+  if (!uid) return [];
+  if (uid.startsWith('demo_') || uid.startsWith('sandbox_') || uid === 'admin_tambu') {
+    try {
+      const key = `tambu_billing_${uid}`;
+      const cached = localStorage.getItem(key);
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
     return [];
   }
   const path = `users/${uid}/billing_records`;
@@ -899,7 +950,12 @@ export async function getBillingRecords(uid: string): Promise<BillingRecord[]> {
     });
     return records;
   } catch (error) {
-    handleFirestoreError(error, OperationType.GET, path);
+    console.warn("Firestore billing get failed, using local cache:", error);
+    try {
+      const key = `tambu_billing_${uid}`;
+      const cached = localStorage.getItem(key);
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
     return [];
   }
 }
