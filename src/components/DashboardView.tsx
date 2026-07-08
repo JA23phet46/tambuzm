@@ -73,8 +73,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const myProperties = isAdmin 
     ? properties 
     : (ownerId
-        ? properties.filter((p) => p.ownerId === ownerId)
-        : []
+        ? properties.filter((p) => p.ownerId === ownerId || p.ownerName === userName || !p.ownerId)
+        : properties
       );
 
   // trial period tracker computations
@@ -204,13 +204,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {!isAdmin && (
             <div className="bg-white border border-[#e4e2e2] rounded-2xl p-5 shadow-sm space-y-2">
               <h4 className="font-extrabold text-sm text-[#1b1c1c] flex items-center gap-1.5">
-                💳 Payment (K100/mo Standard Plan)
+                💳 Subscription Payment Notice (K100/mo Standard Plan)
               </h4>
               <p className="text-xs text-[#5a403f] leading-relaxed">
-                Users can list property for a subscription fee of K100/month failure to which they can have their property removed (Mobile money number <span className="font-mono font-bold text-[#b52330]">0974661185</span> - Japhet Ndafi).
+                Users can list property for a subscription fee of K100/month. Please send payment to mobile money number <span className="font-mono font-bold text-[#b52330]">0974661185</span> (Japhet Ndafi). Failure to subscribe will result in your property listing being removed from the platform.
               </p>
             </div>
           )}
+
           
           {/* Bento Stats Cards (ADMIN vs LANDLORD OWNER VERSION) */}
           {isAdmin ? (
@@ -256,7 +257,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </section>
           ) : (
-            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="bg-white p-6 rounded-2xl border border-[#e4e2e2] shadow-sm flex items-center justify-between">
                 <div>
                   <span className="text-[10px] uppercase font-bold text-[#5a403f] tracking-wide">My Active Listings</span>
@@ -274,29 +275,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
                 <div className="w-12 h-12 bg-[#78fac4] text-[#002115] rounded-xl flex items-center justify-center font-bold text-lg select-none shadow-sm">
                   🇿🇲
-                </div>
-              </div>
-
-              {/* SUBSCRIPTION STATUS CARD */}
-              <div 
-                className="bg-white p-5 rounded-2xl border-2 border-[#e4e2e2] select-none flex flex-col justify-between overflow-hidden relative shadow-sm"
-              >
-                <div className="space-y-1.5 w-full">
-                  <div className="flex justify-between items-start">
-                    <span className="text-[10px] uppercase font-bold text-[#5a403f] tracking-wide block">Tambu Subscription</span>
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shadow-sm bg-[#78fac4] text-[#002115]">
-                      💳
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-extrabold text-[#006c4c] bg-[#78fac4] px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-                    Active Lister (Free to List)
-                  </span>
-                  <div className="text-[10px] font-bold text-gray-500 block">
-                    Verified manually by admin with record books
-                  </div>
-                  <div className="text-[10px] font-black text-[#006c4c] flex items-center gap-0.5">
-                    Standard Plan (K100/mo) ✓
-                  </div>
                 </div>
               </div>
 
@@ -611,68 +589,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </section>
 
-          {/* Manual Subscription Records */}
-          {!isAdmin && (
-            <section className="space-y-4">
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold text-[#1b1c1c]">Tambu Subscription Payment Records</h2>
-                <p className="text-xs text-[#5a403f]">
-                  Manual mobile money subscription payment records submitted to 0974661185 (Japhet Ndafi)
-                </p>
-              </div>
 
-              <div className="bg-white rounded-2xl border border-[#e4e2e2] overflow-hidden shadow-sm">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs sm:text-sm">
-                    <thead className="bg-[#f0eded] text-[#5a403f] uppercase font-bold text-[10px] tracking-wider border-b border-[#e4e2e2]">
-                      <tr>
-                        <th className="p-4">Reference</th>
-                        <th className="p-4">Amount</th>
-                        <th className="p-4">Date</th>
-                        <th className="p-4">Status</th>
-                        <th className="p-4 text-right">Invoices</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#e4e2e2] text-[#1b1c1c] font-medium">
-                      {billingRecords.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="p-6 text-center text-xs text-gray-500">
-                            No subscription invoices found.
-                          </td>
-                        </tr>
-                      ) : (
-                        billingRecords.map((item) => (
-                          <tr key={item.id} className="hover:bg-[#fbf9f8]/60 transition-colors">
-                            <td className="p-4 font-mono text-gray-700">{item.reference}</td>
-                            <td className="p-4 font-bold">K{item.amount.toFixed(2)}</td>
-                            <td className="p-4 text-[#5a403f]">{item.date}</td>
-                            <td className="p-4">
-                              <span className={`px-2 py-1 rounded text-[10px] font-extrabold pb-0.5 ${
-                                item.status === 'SUCCESSFUL' 
-                                  ? 'bg-[#78fac4] text-[#002115]' 
-                                  : 'bg-[#ffdad8] text-[#b52330]'
-                              }`}>
-                                {item.status}
-                              </span>
-                            </td>
-                            <td className="p-4 text-right cursor-pointer">
-                              <button
-                                onClick={() => handleDownloadInvoice(item.reference)}
-                                className="p-2 bg-[#f0eded] text-[#5a403f] hover:bg-[#eae8e7] rounded-lg inline-flex items-center transition-transform active:scale-90"
-                                title="Download PDF Invoice"
-                              >
-                                <Download className="w-3.5 h-3.5 text-[#b52330]" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </section>
-          )}
 
           {/* SUPER ADMIN SUPPORT FEEDBACK MESSAGES LOG */}
           {isAdmin && (

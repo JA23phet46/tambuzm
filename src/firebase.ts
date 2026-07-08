@@ -741,6 +741,17 @@ export async function createPropertyListing(property: Property): Promise<void> {
     }
   } catch (e) {}
 
+  // Also update tambu_properties main cache so listings appear instantly on home screen and dashboards
+  const propCacheKey = 'tambu_properties';
+  try {
+    const cachedProps = localStorage.getItem(propCacheKey);
+    const propList: Property[] = cachedProps ? JSON.parse(cachedProps) : [];
+    if (!propList.some(p => p.id === property.id)) {
+      propList.unshift(property);
+      localStorage.setItem(propCacheKey, JSON.stringify(propList));
+    }
+  } catch (e) {}
+
   try {
     await savePropertyToSupabase(property);
   } catch (err) {
