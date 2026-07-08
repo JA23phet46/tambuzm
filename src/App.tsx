@@ -72,22 +72,30 @@ export default function App() {
   const [properties, setProperties] = useState<Property[]>(() => {
     const cached = localStorage.getItem('tambu_properties');
     try {
+      let list: Property[] = [];
       if (cached) {
         const parsed: Property[] = JSON.parse(cached);
-        let list = parsed.filter(p => p.ownerId !== 'system_admin_or_owner_seed');
-        try {
-          const deletedKey = 'tambu_deleted_property_ids';
-          const cachedDeleted = localStorage.getItem(deletedKey);
-          const deletedList = cachedDeleted ? JSON.parse(cachedDeleted) : [];
-          if (Array.isArray(deletedList) && deletedList.length > 0) {
-            list = list.filter(p => !deletedList.includes(p.id));
-          }
-        } catch (_) {}
-        return list;
+        list = parsed.filter(p => p.ownerId !== 'system_admin_or_owner_seed');
       }
-      return [];
+      
+      // Ensure INITIAL_PROPERTIES are included if not present
+      INITIAL_PROPERTIES.forEach((initProp) => {
+        if (!list.some(p => p.id === initProp.id)) {
+          list.push(initProp);
+        }
+      });
+
+      try {
+        const deletedKey = 'tambu_deleted_property_ids';
+        const cachedDeleted = localStorage.getItem(deletedKey);
+        const deletedList = cachedDeleted ? JSON.parse(cachedDeleted) : [];
+        if (Array.isArray(deletedList) && deletedList.length > 0) {
+          list = list.filter(p => !deletedList.includes(p.id));
+        }
+      } catch (_) {}
+      return list;
     } catch (_) {
-      return [];
+      return [...INITIAL_PROPERTIES];
     }
   });
 
@@ -792,6 +800,14 @@ export default function App() {
         const index = merged.findIndex((p) => p.id === localProp.id);
         if (index === -1) {
           merged.push(localProp);
+        }
+      });
+
+      // Ensure INITIAL_PROPERTIES are included if not present
+      INITIAL_PROPERTIES.forEach((initProp) => {
+        const index = merged.findIndex((p) => p.id === initProp.id);
+        if (index === -1) {
+          merged.push(initProp);
         }
       });
 

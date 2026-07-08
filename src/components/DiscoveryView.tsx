@@ -203,10 +203,15 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
                   <span>{propertyOfTheWeekItem.rating || 4.9}</span>
                 </div>
                 <span className="text-[8px] sm:text-xs text-[#5a403f] font-medium">• {propertyOfTheWeekItem.beds} Bed • {propertyOfTheWeekItem.baths} Bath</span>
-                {propertyOfTheWeekItem.distance && (
+                {propertyOfTheWeekItem.distance ? (
                   <div className="flex items-center gap-1 text-[8px] sm:text-xs text-[#b52330] font-bold bg-[#ffdad8]/80 px-2 py-0.5 rounded-full border border-[#e2bebc]/40">
                     <Footprints className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 shrink-0" />
                     <span>{propertyOfTheWeekItem.distance}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 text-[8px] sm:text-xs text-[#b52330] font-bold bg-[#ffdad8]/80 px-2 py-0.5 rounded-full border border-[#e2bebc]/40">
+                    <Footprints className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 shrink-0" />
+                    <span>5 min walk to nearest landmark</span>
                   </div>
                 )}
               </div>
@@ -465,7 +470,7 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
                   {p.distance && (
                     <div className="flex items-center gap-1 text-[9px] sm:text-[10px] text-[#b52330] font-semibold bg-[#ffdad8]/40 px-2 py-0.5 rounded-md border border-[#e2bebc]/40 w-fit">
                       <Footprints className="w-3 h-3 shrink-0" />
-                      <span className="truncate">{p.distance}</span>
+                      <span className="truncate">{p.distance || '5 min walk to nearest landmark'}</span>
                     </div>
                   )}
                   
