@@ -309,7 +309,7 @@ export const PropertyDetailsView: React.FC<PropertyDetailsViewProps> = ({
 
           {/* Key Amenities */}
           <section className="space-y-4 pt-4 border-t border-[#e4e2e2]">
-            <h2 className="text-lg font-bold text-[#1b1c1c]">Key Amenities</h2>
+            <h2 className="text-lg font-bold text-[#1b1c1c]">Key Amenities & Features</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="flex items-center gap-3 p-4 bg-[#f0eded] rounded-xl border border-[#e4e2e2]/30 shadow-none">
                 <Bed className="text-[#b52330] w-5 h-5 shrink-0" />
@@ -319,14 +319,12 @@ export const PropertyDetailsView: React.FC<PropertyDetailsViewProps> = ({
                 <Bath className="text-[#b52330] w-5 h-5 shrink-0" />
                 <span className="text-xs sm:text-sm font-semibold text-[#1b1c1c]">{property.baths} Bathrooms</span>
               </div>
-              <div className="flex items-center gap-3 p-4 bg-[#f0eded] rounded-xl border border-[#e4e2e2]/30 shadow-none">
-                <Waves className="text-[#b52330] w-5 h-5 shrink-0" />
-                <span className="text-xs sm:text-sm font-semibold text-[#1b1c1c]">Pool Access</span>
-              </div>
-              <div className="flex items-center gap-3 p-4 bg-[#f0eded] rounded-xl border border-[#e4e2e2]/30 shadow-none">
-                <Shield className="text-[#b52330] w-5 h-5 shrink-0" />
-                <span className="text-xs sm:text-sm font-semibold text-[#1b1c1c]">24/7 Security</span>
-              </div>
+              {Array.isArray(property.amenities) && property.amenities.map((amenity, idx) => (
+                <div key={`amenity-${idx}`} className="flex items-center gap-3 p-4 bg-[#f0eded] rounded-xl border border-[#e4e2e2]/30 shadow-none">
+                  <Check className="text-[#b52330] w-5 h-5 shrink-0 stroke-[3]" />
+                  <span className="text-xs sm:text-sm font-semibold text-[#1b1c1c]">{amenity}</span>
+                </div>
+              ))}
             </div>
           </section>
 

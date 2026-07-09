@@ -93,7 +93,7 @@ export const PhotoSelectorView: React.FC<PhotoSelectorViewProps> = ({
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          const MAX_DIM = 800;
+          const MAX_DIM = 1600;
 
           if (width > height) {
             if (width > MAX_DIM) {
@@ -112,7 +112,7 @@ export const PhotoSelectorView: React.FC<PhotoSelectorViewProps> = ({
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(img, 0, 0, width, height);
-            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.75);
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.92);
 
             setCustomPool((prev) => {
               const updated = [compressedBase64, ...prev].slice(0, 20);
