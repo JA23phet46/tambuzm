@@ -1600,13 +1600,12 @@ export default function App() {
       type: input.type,
       beds: Number(input.beds),
       baths: Number(input.baths),
-      sqm: Number(input.sqm),
       image: input.photos[0] || '',
       verified: false, // matches security rule
       featured: false, // matches security rule
-      rating: 4.8,
+      rating: 0,
       saves: 0,
-      views: 120,
+      views: 0,
       province: input.province,
       ownerId: currentUser.uid,
       ownerName: userName,
@@ -1671,10 +1670,7 @@ export default function App() {
           } catch (storageErr) {
             console.warn('LocalStorage quota exceeded during property publish, trimming photos:', storageErr);
             try {
-              const trimmed = updated.slice(0, 15).map(p => ({
-                ...p,
-                photos: (p.photos || []).map(ph => ph && ph.startsWith('data:') ? 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&q=80' : ph)
-              }));
+              const trimmed = updated.slice(0, 15);
               localStorage.setItem('tambu_properties', JSON.stringify(trimmed));
             } catch (e2) {
               localStorage.removeItem('tambu_properties');

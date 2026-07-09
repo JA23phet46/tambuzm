@@ -26,7 +26,7 @@ export interface NewListingInput {
   type: PropertyType;
   beds: number;
   baths: number;
-  sqm: number;
+  sqm?: number;
   distance: string;
   description: string;
   amenities: string[];
@@ -45,7 +45,7 @@ export interface Property {
   type: PropertyType;
   beds: number;
   baths: number;
-  sqm: number;
+  sqm?: number;
   image: string;
   verified: boolean;
   featured: boolean;

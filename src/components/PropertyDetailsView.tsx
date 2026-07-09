@@ -292,7 +292,7 @@ export const PropertyDetailsView: React.FC<PropertyDetailsViewProps> = ({
               {/* Star Rating Badge */}
               <div className="flex items-center gap-1 bg-[#ffdad8] text-[#b52330] px-3 py-1.5 rounded-xl font-bold text-sm shrink-0 border border-[#e2bebc]">
                 <Star className="w-4 h-4 fill-current" />
-                <span>{property.rating || 4.8}</span>
+                <span>{property.rating && property.rating > 0 ? property.rating : 'New'}</span>
               </div>
             </div>
 

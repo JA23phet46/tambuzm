@@ -28,7 +28,6 @@ export const ListingFormView: React.FC<ListingFormViewProps> = ({
   const [price, setPrice] = useState<number | ''>('');
   const [beds, setBeds] = useState<number | ''>('');
   const [baths, setBaths] = useState<number | ''>('');
-  const [sqm, setSqm] = useState<number | ''>('');
   const [distance, setDistance] = useState('');
   const [description, setDescription] = useState('');
   const [amenities, setAmenities] = useState<string[]>([]);
@@ -70,7 +69,6 @@ export const ListingFormView: React.FC<ListingFormViewProps> = ({
       type,
       beds: Number(beds) || 0,
       baths: Number(baths) || 0,
-      sqm: Number(sqm) || 0,
       distance,
       description,
       amenities,
@@ -238,8 +236,8 @@ export const ListingFormView: React.FC<ListingFormViewProps> = ({
           />
         </div>
 
-        {/* Specifications row: Beds, Baths, Sqm */}
-        <div className="grid grid-cols-3 gap-4">
+        {/* Specifications row: Beds, Baths */}
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-xs font-bold text-[#1b1c1c] block">Bedrooms</label>
             <input
@@ -263,19 +261,6 @@ export const ListingFormView: React.FC<ListingFormViewProps> = ({
               onChange={(e) => setBaths(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
               className="w-full bg-white border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs sm:text-sm focus:border-[#8e706f] focus:ring-0 outline-none"
               placeholder="e.g. 1"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-[#1b1c1c] block">Size (SQM)</label>
-            <input
-              type="number"
-              min="1"
-              required
-              value={sqm}
-              onChange={(e) => setSqm(e.target.value === '' ? '' : Math.max(1, Number(e.target.value)))}
-              className="w-full bg-white border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs sm:text-sm focus:border-[#8e706f] focus:ring-0 outline-none"
-              placeholder="e.g. 30"
             />
           </div>
         </div>

@@ -200,7 +200,7 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
               <div className="flex items-center flex-wrap gap-1.5 sm:gap-3 pt-0.5">
                 <div className="flex items-center gap-0.5 text-[8px] sm:text-xs text-amber-800 font-bold bg-amber-100 px-1.5 py-0.5 rounded-full">
                   <Star className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 fill-current text-amber-500" />
-                  <span>{propertyOfTheWeekItem.rating || 4.9}</span>
+                  <span>{propertyOfTheWeekItem.rating && propertyOfTheWeekItem.rating > 0 ? propertyOfTheWeekItem.rating : 'New'}</span>
                 </div>
                 <span className="text-[8px] sm:text-xs text-[#5a403f] font-medium">• {propertyOfTheWeekItem.beds} Bed • {propertyOfTheWeekItem.baths} Bath</span>
                 {propertyOfTheWeekItem.distance ? (
@@ -334,7 +334,7 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
                     </h3>
                     <div className="flex items-center gap-0.5 text-[10px] font-bold text-[#b52330] shrink-0">
                       <Star className="w-3 h-3 fill-current" />
-                      <span>{item.rating || 4.5}</span>
+                      <span>{item.rating && item.rating > 0 ? item.rating : 'New'}</span>
                     </div>
                   </div>
                   
@@ -461,7 +461,7 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
                     </h3>
                     <div className="flex items-center gap-0.5 text-[10px] font-bold text-[#b52330] shrink-0">
                       <Star className="w-3 h-3 fill-current" />
-                      <span>{p.rating || 4.8}</span>
+                      <span>{p.rating && p.rating > 0 ? p.rating : 'New'}</span>
                     </div>
                   </div>
                   
@@ -587,7 +587,7 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
                     </h3>
                     <div className="flex items-center gap-0.5 text-[10px] font-bold text-[#b52330] shrink-0">
                       <Star className="w-3 h-3 fill-current" />
-                      <span>{item.rating || 4.7}</span>
+                      <span>{item.rating && item.rating > 0 ? item.rating : 'New'}</span>
                     </div>
                   </div>
                   
@@ -714,7 +714,7 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
                       </h3>
                       <div className="flex items-center gap-1 text-xs font-bold text-[#b52330] shrink-0">
                         <Star className="w-3.5 h-3.5 fill-current" />
-                        <span>{item.rating || 4.8}</span>
+                        <span>{item.rating && item.rating > 0 ? item.rating : 'New'}</span>
                       </div>
                     </div>
                     
