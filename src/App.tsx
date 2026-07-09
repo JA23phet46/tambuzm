@@ -1670,7 +1670,20 @@ export default function App() {
         const index = prev.findIndex(p => p.id === finalRecord.id);
         if (index === -1) {
           const updated = [finalRecord, ...prev];
-          localStorage.setItem('tambu_properties', JSON.stringify(updated));
+          try {
+            localStorage.setItem('tambu_properties', JSON.stringify(updated));
+          } catch (storageErr) {
+            console.warn('LocalStorage quota exceeded during property publish, trimming photos:', storageErr);
+            try {
+              const trimmed = updated.slice(0, 15).map(p => ({
+                ...p,
+                photos: (p.photos || []).map(ph => ph && ph.startsWith('data:') ? 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&q=80' : ph)
+              }));
+              localStorage.setItem('tambu_properties', JSON.stringify(trimmed));
+            } catch (e2) {
+              localStorage.removeItem('tambu_properties');
+            }
+          }
           return updated;
         }
         return prev;
