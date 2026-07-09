@@ -960,13 +960,19 @@ export default function App() {
 
   // --- Navigation engine helper callbacks ---
   const navigateTo = (page: string, isSubscription: boolean = false) => {
-    if (page === 'seeker-dashboard' && (isAdmin || userRole === UserRole.OWNER)) {
+    const isSysAdmin = isAdmin || 
+                       userEmail?.toLowerCase() === 'admin@tambu.com' || 
+                       currentUser?.email?.toLowerCase() === 'admin@tambu.com' ||
+                       localStorage.getItem('tambu_user_email')?.toLowerCase() === 'admin@tambu.com' ||
+                       localStorage.getItem('tambu_is_admin') === 'true';
+
+    if (page === 'seeker-dashboard' && (isSysAdmin || userRole === UserRole.OWNER)) {
       page = 'owner-dashboard';
     }
 
-    if (page === 'owner-dashboard' && !isAdmin) {
+    if (page === 'owner-dashboard' && !isSysAdmin) {
       triggerToast('Access denied: Super admin dashboard is restricted to system administrators.', 'error');
-      navigateTo('seeker-dashboard');
+      navigateTo('discovery');
       return;
     }
 
@@ -1239,6 +1245,9 @@ export default function App() {
       if (isSystemAdminMail) {
         setIsAdmin(true);
         setAdminModeActive(true);
+        setUserEmail('admin@tambu.com');
+        localStorage.setItem('tambu_is_admin', 'true');
+        localStorage.setItem('tambu_user_email', 'admin@tambu.com');
         finalRole = UserRole.OWNER;
       } else {
         setIsAdmin(false);
@@ -1277,6 +1286,8 @@ export default function App() {
         setUserEmail('admin@tambu.com');
         setUserPhone('+260 977 112233');
         setUserRole(UserRole.OWNER); // Uses the same dashboards layout
+        localStorage.setItem('tambu_is_admin', 'true');
+        localStorage.setItem('tambu_user_email', 'admin@tambu.com');
 
         const adminProfile = {
           uid: 'admin_tambu',
