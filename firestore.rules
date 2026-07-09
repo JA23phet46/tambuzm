@@ -23,9 +23,10 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == "japhetndafi23@gmail.com" ||
-        request.auth.token.email == "admin@tambu.com" ||
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        request.auth.uid == "8309ac86-f72e-4e4c-8916-abcde17379d3" ||
+        (request.auth.token.keys().hasAll(['email']) && (request.auth.token.email == "japhetndafi23@gmail.com" || request.auth.token.email == "admin@tambu.com")) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == "admin@tambu.com")
       );
     }
 
@@ -285,6 +286,11 @@ service cloud.firestore {
         && incoming().ownerId == existing().ownerId;
         
       allow delete: if isAdmin();
+    }
+
+    // 7. Admins collection
+    match /admins/{adminId} {
+      allow read, write: if isAdmin();
     }
   }
 }

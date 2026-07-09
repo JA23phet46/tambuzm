@@ -782,6 +782,14 @@ export default function App() {
             }
           });
 
+          // Ensure INITIAL_PROPERTIES are included if not present
+          INITIAL_PROPERTIES.forEach((initProp) => {
+            const index = merged.findIndex((p) => p.id === initProp.id);
+            if (index === -1) {
+              merged.push(initProp);
+            }
+          });
+
           let filteredMerged = merged;
           try {
             const deletedKey = 'tambu_deleted_property_ids';
@@ -792,8 +800,10 @@ export default function App() {
             }
           } catch (e) {}
 
-          setProperties(filteredMerged);
-          localStorage.setItem('tambu_properties', JSON.stringify(filteredMerged));
+          if (filteredMerged.length > 0) {
+            setProperties(filteredMerged);
+            localStorage.setItem('tambu_properties', JSON.stringify(filteredMerged));
+          }
         }
       });
     }
