@@ -214,7 +214,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="bg-white p-6 rounded-2xl border border-[#1b5e20] shadow-sm flex items-center justify-between">
                 <div>
                   <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wide">Total Rent Transacted</span>
-                  <h3 className="text-2xl font-black text-[#1b1c1c] mt-1">ZMW {systemAggregateRentValue.toLocaleString()}</h3>
+                  <h3 className="text-2xl font-black text-[#1b1c1c] mt-1">ZMW {Number(systemAggregateRentValue || 0).toLocaleString()}</h3>
                 </div>
                 <div className="w-12 h-12 bg-[#78fac4] text-[#002115] rounded-xl flex items-center justify-center font-bold text-lg select-none shadow-sm">
                   🇿🇲
@@ -246,7 +246,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="bg-white p-6 rounded-2xl border border-[#e4e2e2] shadow-sm flex items-center justify-between">
                 <div>
                   <span className="text-[10px] uppercase font-bold text-[#5a403f] tracking-wide">Rent Collected via App</span>
-                  <h3 className="text-2xl font-black text-emerald-800 mt-1">ZMW {myAggregateRentValue.toLocaleString()}</h3>
+                  <h3 className="text-2xl font-black text-emerald-800 mt-1">ZMW {Number(myAggregateRentValue || 0).toLocaleString()}</h3>
                 </div>
                 <div className="w-12 h-12 bg-[#78fac4] text-[#002115] rounded-xl flex items-center justify-center font-bold text-lg select-none shadow-sm">
                   🇿🇲
@@ -338,7 +338,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           </div>
                           <p className="text-xs text-[#5a403f]">{p.location}</p>
                           <div className="flex items-center gap-1.5 mt-1">
-                            <span className="text-xs text-[#b52330] font-black">ZMW {p.price.toLocaleString()}</span>
+                            <span className="text-xs text-[#b52330] font-black">ZMW {Number(p.price || 0).toLocaleString()}</span>
                             <span className="text-[10px] text-gray-300">•</span>
                             <span className={`text-[10px] font-extrabold uppercase tracking-wide px-1 rounded ${
                               p.available !== false ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
@@ -543,7 +543,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             )}
                           </td>
                           <td className="p-4 font-extrabold text-[#b52330] text-xs">
-                            ZMW {p.amount.toLocaleString()}
+                            ZMW {Number(p.amount || 0).toLocaleString()}
                           </td>
                           <td className="p-4 text-gray-500 text-[11px]">
                             {p.date}
@@ -668,7 +668,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       />
                       <div className="min-w-0 flex-1">
                         <h4 className="font-bold text-xs text-[#1b1c1c] truncate">{p.name}</h4>
-                        <span className="text-[10px] text-[#b52330] font-bold block mt-1">ZMW {p.price.toLocaleString()}</span>
+                        <span className="text-[10px] text-[#b52330] font-bold block mt-1">ZMW {Number(p.price || 0).toLocaleString()}</span>
                       </div>
                     </div>
                   ))}
@@ -727,7 +727,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <span className="text-xs font-extrabold text-[#b52330] block">ZMW {p.amount.toLocaleString()}</span>
+                        <span className="text-xs font-extrabold text-[#b52330] block">ZMW {Number(p.amount || 0).toLocaleString()}</span>
                         <span className="text-[9px] text-[#006c4c] font-black uppercase bg-green-50 px-1 py-0.5 rounded leading-none">
                           {p.status}
                         </span>
