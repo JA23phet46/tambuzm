@@ -769,10 +769,19 @@ export default function App() {
           const localCustom = localStorage.getItem('tambu_local_properties');
           const parsedLocal: Property[] = localCustom ? JSON.parse(localCustom) : [];
 
+          const cachedProps = localStorage.getItem('tambu_properties');
+          const parsedCached: Property[] = cachedProps ? JSON.parse(cachedProps) : [];
+
           const merged: Property[] = [];
           parsedLocal.forEach((localProp) => {
             if (!merged.some(p => p.id === localProp.id)) {
               merged.push(localProp);
+            }
+          });
+
+          parsedCached.forEach((cachedProp) => {
+            if (!merged.some(p => p.id === cachedProp.id)) {
+              merged.push(cachedProp);
             }
           });
 
@@ -802,7 +811,9 @@ export default function App() {
 
           if (filteredMerged.length > 0) {
             setProperties(filteredMerged);
-            localStorage.setItem('tambu_properties', JSON.stringify(filteredMerged));
+            try {
+              localStorage.setItem('tambu_properties', JSON.stringify(filteredMerged));
+            } catch (_) {}
           }
         }
       });
@@ -820,10 +831,19 @@ export default function App() {
       const localCustom = localStorage.getItem('tambu_local_properties');
       const parsedLocal: Property[] = localCustom ? JSON.parse(localCustom) : [];
 
+      const cachedProps = localStorage.getItem('tambu_properties');
+      const parsedCached: Property[] = cachedProps ? JSON.parse(cachedProps) : [];
+
       const merged: Property[] = [];
       parsedLocal.forEach((localProp) => {
         if (!merged.some(p => p.id === localProp.id)) {
           merged.push(localProp);
+        }
+      });
+
+      parsedCached.forEach((cachedProp) => {
+        if (!merged.some(p => p.id === cachedProp.id)) {
+          merged.push(cachedProp);
         }
       });
 
@@ -855,8 +875,12 @@ export default function App() {
       }
 
       // Update state and local storage representing clean production environment
-      setProperties(filteredMerged);
-      localStorage.setItem('tambu_properties', JSON.stringify(filteredMerged));
+      if (filteredMerged.length > 0) {
+        setProperties(filteredMerged);
+        try {
+          localStorage.setItem('tambu_properties', JSON.stringify(filteredMerged));
+        } catch (_) {}
+      }
     }, (error) => {
       console.warn("Properties real-time sync failed:", error);
       const cachedProps = localStorage.getItem('tambu_properties');
