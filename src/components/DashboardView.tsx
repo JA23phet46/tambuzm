@@ -278,12 +278,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 >
                   <MessageSquare className="w-4 h-4 text-[#b52330]" /> Messages
                 </button>
-                <button
-                  onClick={() => onNavigate('add-property')}
-                  className="bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-2.5 px-4 rounded-xl flex items-center gap-1 shadow-sm transition-all active:scale-95"
-                >
-                  <Plus className="w-4 h-4" /> Add Properties
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => onNavigate('add-property')}
+                    className="bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-2.5 px-4 rounded-xl flex items-center gap-1 shadow-sm transition-all active:scale-95"
+                  >
+                    <Plus className="w-4 h-4" /> Add Properties
+                  </button>
+                )}
               </div>
             </div>
 

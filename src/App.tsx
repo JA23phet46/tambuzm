@@ -1022,12 +1022,10 @@ export default function App() {
       return;
     }
 
-    if (page === 'add-property' && !isAdmin && currentUser) {
-      const ownerPropertiesCount = properties.filter(p => p.ownerId === currentUser.uid).length;
-      if (ownerPropertiesCount >= 6) {
-        triggerToast('Error: Free accounts are limited to listing at most 6 properties.', 'error');
-        return;
-      }
+    if (page === 'add-property' && !isSysAdmin) {
+      triggerToast('Access Denied: Only Super Admin is authorized to list properties on Tambu.', 'error');
+      navigateTo('discovery');
+      return;
     }
 
     if (page === 'checkout' && !isSubscription && selectedProperty) {
@@ -1575,13 +1573,15 @@ export default function App() {
       return;
     }
 
-    if (!isAdmin) {
-      const ownerPropertiesCount = properties.filter(p => p.ownerId === currentUser.uid).length;
-      if (ownerPropertiesCount >= 6) {
-        triggerToast('Error: Free accounts are limited to listing at most 6 properties.', 'error');
-        navigateTo('owner-dashboard');
-        return;
-      }
+    const isSysAdmin = isAdmin || 
+                       currentUser?.email?.toLowerCase() === 'admin@tambu.com' ||
+                       localStorage.getItem('tambu_user_email')?.toLowerCase() === 'admin@tambu.com' ||
+                       localStorage.getItem('tambu_is_admin') === 'true';
+
+    if (!isSysAdmin) {
+      triggerToast('Access Denied: Only Super Admin is authorized to publish and list properties on Tambu.', 'error');
+      navigateTo('discovery');
+      return;
     }
 
     const safeToISOString = (dateStr: any): string | undefined => {

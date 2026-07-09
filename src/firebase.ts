@@ -748,9 +748,17 @@ export async function createPropertyListing(property: Property): Promise<void> {
     const propList: Property[] = cachedProps ? JSON.parse(cachedProps) : [];
     if (!propList.some(p => p.id === property.id)) {
       propList.unshift(property);
-      localStorage.setItem(propCacheKey, JSON.stringify(propList));
+      try {
+        localStorage.setItem(propCacheKey, JSON.stringify(propList));
+      } catch (quotaErr) {
+        // If quota exceeded, slice to latest 30 properties to fit storage
+        const trimmed = propList.slice(0, 30);
+        localStorage.setItem(propCacheKey, JSON.stringify(trimmed));
+      }
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn("Error caching property to localStorage:", e);
+  }
 
   try {
     await savePropertyToSupabase(property);
