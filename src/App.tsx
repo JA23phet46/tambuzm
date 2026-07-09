@@ -73,9 +73,24 @@ export default function App() {
     const cached = localStorage.getItem('tambu_properties');
     try {
       let list: Property[] = [];
+      
+      const localCustom = localStorage.getItem('tambu_local_properties');
+      const parsedLocal: Property[] = localCustom ? JSON.parse(localCustom) : [];
+      const filteredLocal = parsedLocal.filter(p => p.ownerId !== 'system_admin_or_owner_seed');
+      
+      filteredLocal.forEach(p => {
+        if (!list.some(existing => existing.id === p.id)) {
+          list.push(p);
+        }
+      });
+
       if (cached) {
         const parsed: Property[] = JSON.parse(cached);
-        list = parsed.filter(p => p.ownerId !== 'system_admin_or_owner_seed');
+        parsed.filter(p => p.ownerId !== 'system_admin_or_owner_seed').forEach(p => {
+          if (!list.some(existing => existing.id === p.id)) {
+            list.push(p);
+          }
+        });
       }
       
       // Ensure INITIAL_PROPERTIES are included if not present
@@ -756,11 +771,16 @@ export default function App() {
           const parsedLocal: Property[] = localCustom ? JSON.parse(localCustom) : [];
           const filteredLocal = parsedLocal.filter(p => p.ownerId !== 'system_admin_or_owner_seed');
 
-          const merged = [...supProps];
+          const merged: Property[] = [];
           filteredLocal.forEach((localProp) => {
-            const index = merged.findIndex((p) => p.id === localProp.id);
-            if (index === -1) {
+            if (!merged.some(p => p.id === localProp.id)) {
               merged.push(localProp);
+            }
+          });
+
+          supProps.forEach((supProp) => {
+            if (!merged.some(p => p.id === supProp.id)) {
+              merged.push(supProp);
             }
           });
 
@@ -791,16 +811,21 @@ export default function App() {
         }
       });
 
-      // Integrate locally staged custom user-posted properties
+      // Integrate locally staged custom user-posted properties with highest priority
       const localCustom = localStorage.getItem('tambu_local_properties');
       const parsedLocal: Property[] = localCustom ? JSON.parse(localCustom) : [];
       const filteredLocal = parsedLocal.filter(p => p.ownerId !== 'system_admin_or_owner_seed');
 
-      const merged = [...items];
+      const merged: Property[] = [];
       filteredLocal.forEach((localProp) => {
-        const index = merged.findIndex((p) => p.id === localProp.id);
-        if (index === -1) {
+        if (!merged.some(p => p.id === localProp.id)) {
           merged.push(localProp);
+        }
+      });
+
+      items.forEach((item) => {
+        if (!merged.some(p => p.id === item.id)) {
+          merged.push(item);
         }
       });
 

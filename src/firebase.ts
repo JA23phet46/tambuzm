@@ -736,7 +736,7 @@ export async function createPropertyListing(property: Property): Promise<void> {
     const cached = localStorage.getItem(cacheKey);
     const list: Property[] = cached ? JSON.parse(cached) : [];
     if (!list.some(p => p.id === property.id)) {
-      list.push(property);
+      list.unshift(property);
       localStorage.setItem(cacheKey, JSON.stringify(list));
     }
   } catch (e) {}
