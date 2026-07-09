@@ -613,6 +613,7 @@ export default function App() {
         if (isSystemAdminMail) {
           setIsAdmin(true);
           setAdminModeActive(true);
+          setUserRole(UserRole.OWNER);
         } else {
           setIsAdmin(false);
           setAdminModeActive(false);
@@ -621,7 +622,7 @@ export default function App() {
         if (profile) {
           setUserName(profile.name);
           setUserPhone(profile.phone);
-          setUserRole(profile.role);
+          setUserRole(isSystemAdminMail ? UserRole.OWNER : profile.role);
           setTrialEndsAt(profile.trialEndsAt || '');
           setIsSubscribed(profile.isSubscribed === true);
           if (profile.subscriptionExpiresAt) {
@@ -959,6 +960,12 @@ export default function App() {
 
   // --- Navigation engine helper callbacks ---
   const navigateTo = (page: string, isSubscription: boolean = false) => {
+    if (page === 'owner-dashboard' && !isAdmin) {
+      triggerToast('Access denied: Super admin dashboard is restricted to system administrators.', 'error');
+      navigateTo('seeker-dashboard');
+      return;
+    }
+
     // Requirements: only signed in or logged in can:
     // 1. make payments ('checkout' / 'payment-waiting' / 'payment-airtel')
     // 2. post properties ('add-property' / 'select-photos')
@@ -1228,18 +1235,18 @@ export default function App() {
       if (isSystemAdminMail) {
         setIsAdmin(true);
         setAdminModeActive(true);
+        finalRole = UserRole.OWNER;
       } else {
         setIsAdmin(false);
         setAdminModeActive(false);
-      }
-
-      const profile = await getUserProfile(credential.user.uid);
-      if (profile) {
-        finalRole = profile.role;
-        setTrialEndsAt(profile.trialEndsAt || '');
-        setIsSubscribed(profile.isSubscribed === true);
-      } else {
-        finalRole = userRole;
+        const profile = await getUserProfile(credential.user.uid);
+        if (profile) {
+          finalRole = profile.role;
+          setTrialEndsAt(profile.trialEndsAt || '');
+          setIsSubscribed(profile.isSubscribed === true);
+        } else {
+          finalRole = userRole;
+        }
       }
       
       setUserRole(finalRole);
