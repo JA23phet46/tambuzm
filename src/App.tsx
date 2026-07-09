@@ -1573,14 +1573,10 @@ export default function App() {
       return;
     }
 
-    const isSysAdmin = isAdmin || 
-                       currentUser?.email?.toLowerCase() === 'admin@tambu.com' ||
-                       localStorage.getItem('tambu_user_email')?.toLowerCase() === 'admin@tambu.com' ||
-                       localStorage.getItem('tambu_is_admin') === 'true';
-
-    if (!isSysAdmin) {
-      triggerToast('Access Denied: Only Super Admin is authorized to publish and list properties on Tambu.', 'error');
-      navigateTo('discovery');
+    const canPublish = isAdmin || userRole === UserRole.OWNER || isLoggedIn || currentUser;
+    if (!canPublish) {
+      triggerToast('Please sign in as a property owner or admin to publish listings.', 'error');
+      navigateTo('login');
       return;
     }
 
