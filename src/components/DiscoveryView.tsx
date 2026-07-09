@@ -617,6 +617,140 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
         )}
       </section>
 
+      {/* Complete Market Listings Grid */}
+      <section className="space-y-4 pt-4 border-t border-[#e4e2e2]">
+        <div className="flex justify-between items-end">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-bold text-[#1b1c1c]">All Market Listings ({filteredProperties.length})</h2>
+            <p className="text-xs sm:text-sm text-[#5a403f]">Browse every active property listed across Zambia</p>
+          </div>
+        </div>
+
+        {filteredProperties.length === 0 ? (
+          <div className="bg-white rounded-xl p-10 text-center border border-[#e4e2e2] text-sm text-[#5a403f]">
+            No properties found matching your current filter. Try adjusting your search query or province.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredProperties.map((item) => (
+              <div
+                key={item.id}
+                className="bg-white rounded-2xl border border-[#eae8e7] overflow-hidden group shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+              >
+                <div>
+                  <div className="relative h-44 sm:h-52 overflow-hidden bg-[#eae8e7]">
+                    <img
+                      alt={item.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer"
+                      referrerPolicy="no-referrer"
+                      src={item.image}
+                      onClick={() => onSelectProperty(item)}
+                    />
+                    {item.verified ? (
+                      <div 
+                        onClick={isAdmin ? (e) => {
+                          e.stopPropagation();
+                          onTogglePropertyVerified?.(item.id, true);
+                        } : undefined}
+                        className={`absolute top-3 left-3 w-7 h-7 rounded-full bg-white/95 flex items-center justify-center text-emerald-600 shadow-sm z-10 border border-emerald-100 ${isAdmin ? 'cursor-pointer hover:bg-emerald-50 active:scale-95 transition-all' : ''}`}
+                        title={isAdmin ? 'Click to Remove Verification' : 'Verified Property'}
+                      >
+                        <Check className="w-4 h-4 stroke-[4px] text-emerald-650" />
+                      </div>
+                    ) : (
+                      isAdmin && (
+                        <div 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onTogglePropertyVerified?.(item.id, false);
+                          }}
+                          className="absolute top-3 left-3 w-7 h-7 rounded-full bg-slate-100/90 hover:bg-emerald-50 flex items-center justify-center text-slate-400 hover:text-emerald-650 shadow-sm z-10 border border-slate-200 cursor-pointer active:scale-95 transition-all"
+                          title="Click to Verify Property"
+                        >
+                          <Check className="w-4 h-4 stroke-[2px]" />
+                        </div>
+                      )
+                    )}
+                    {item.propertyOfTheWeek && (
+                      <div className="absolute top-3 left-12 bg-amber-500 text-white px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider shadow-sm z-10 font-sans">
+                        Spotlight
+                      </div>
+                    )}
+                    <div className={`absolute bottom-3 left-3 backdrop-blur-md px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider shadow-sm flex items-center gap-1 z-10 ${
+                      item.available !== false 
+                        ? 'bg-[#006c4c]/90 text-white' 
+                        : 'bg-[#d97706]/90 text-white'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${item.available !== false ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+                      {item.available !== false ? 'Available' : 'Pending'}
+                    </div>
+                    {isAdmin && onDeleteProperty && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteProperty(item.id);
+                        }}
+                        className="absolute top-3 right-11 w-7 h-7 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center text-red-700 shadow-sm z-10 active:scale-95 transition-all"
+                        title="Super Admin: Delete Listing"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => onToggleSaved(item.id, e)}
+                      className="absolute top-3 right-3 w-7 h-7 rounded-full bg-white/90 flex items-center justify-center text-[#b52330] shadow-sm hover:scale-105 active:scale-95 transition-transform z-10"
+                    >
+                      <Heart className={`w-4 h-4 ${savedIds.includes(item.id) ? 'fill-current' : ''}`} />
+                    </button>
+                  </div>
+
+                  <div className="p-4 space-y-2">
+                    <div className="flex justify-between items-start gap-2">
+                      <h3 
+                        onClick={() => onSelectProperty(item)}
+                        className="font-bold text-sm sm:text-base text-[#1b1c1c] hover:text-[#b52330] transition-colors cursor-pointer line-clamp-1 flex-1"
+                      >
+                        {item.name}
+                      </h3>
+                      <div className="flex items-center gap-1 text-xs font-bold text-[#b52330] shrink-0">
+                        <Star className="w-3.5 h-3.5 fill-current" />
+                        <span>{item.rating || 4.8}</span>
+                      </div>
+                    </div>
+                    
+                    <p className="text-xs text-[#5a403f]/80 flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-[#b52330] shrink-0" />
+                      <span className="line-clamp-1">{item.location}, {item.province}</span>
+                    </p>
+                    
+                    {item.distance && (
+                      <div className="flex items-center gap-1 text-[10px] text-[#b52330] font-semibold bg-[#ffdad8]/40 px-2.5 py-1 rounded-md border border-[#e2bebc]/40 w-fit">
+                        <Footprints className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{item.distance}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-4 pt-0 flex justify-between items-center border-t border-[#f5f3f3] mt-2">
+                  <div>
+                    <span className="text-[10px] text-[#5a403f] block uppercase tracking-wider font-mono">Rent / Month</span>
+                    <span className="text-[#b52330] font-black text-sm sm:text-base">
+                      ZMW {formatPrice(item.price)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-[#5a403f] font-medium shrink-0 bg-[#f0eded] px-3 py-1.5 rounded-xl">
+                    <span className="flex items-center gap-1"><Bed className="w-3.5 h-3.5 text-[#b52330]" /> {item.beds}</span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1"><Bath className="w-3.5 h-3.5 text-[#b52330]" /> {item.baths}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
     </div>
   );
 };
