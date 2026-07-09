@@ -6,6 +6,7 @@ interface BottomNavProps {
   currentPage: string;
   isLoggedIn: boolean;
   userRole: UserRole;
+  isAdmin?: boolean;
   onNavigate: (page: string) => void;
   chatsCount?: number;
 }
@@ -14,6 +15,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   currentPage,
   isLoggedIn,
   userRole,
+  isAdmin = false,
   onNavigate,
   chatsCount = 0,
 }) => {
@@ -48,14 +50,14 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           if (!isLoggedIn) {
             onNavigate('login');
           } else {
-            onNavigate('seeker-dashboard');
+            onNavigate(isAdmin || userRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
           }
         }}
         className={`flex flex-col items-center justify-center w-16 h-12 transition-all ${
-          currentPage === 'seeker-dashboard' ? 'text-[#b52330]' : 'text-[#5a403f] hover:text-[#b52330]'
+          currentPage === 'seeker-dashboard' || currentPage === 'owner-dashboard' ? 'text-[#b52330]' : 'text-[#5a403f] hover:text-[#b52330]'
         }`}
       >
-        <LayoutDashboard className={`w-5 h-5 ${currentPage === 'seeker-dashboard' ? 'stroke-[2.5px]' : ''}`} />
+        <LayoutDashboard className={`w-5 h-5 ${currentPage === 'seeker-dashboard' || currentPage === 'owner-dashboard' ? 'stroke-[2.5px]' : ''}`} />
         <span className="text-[10px] mt-1 font-semibold">Dashboard</span>
       </button>
 

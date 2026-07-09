@@ -960,6 +960,10 @@ export default function App() {
 
   // --- Navigation engine helper callbacks ---
   const navigateTo = (page: string, isSubscription: boolean = false) => {
+    if (page === 'seeker-dashboard' && (isAdmin || userRole === UserRole.OWNER)) {
+      page = 'owner-dashboard';
+    }
+
     if (page === 'owner-dashboard' && !isAdmin) {
       triggerToast('Access denied: Super admin dashboard is restricted to system administrators.', 'error');
       navigateTo('seeker-dashboard');
@@ -2474,6 +2478,7 @@ export default function App() {
         currentPage={currentPage}
         isLoggedIn={isLoggedIn}
         userRole={userRole}
+        isAdmin={isAdmin}
         onNavigate={navigateTo}
         chatsCount={chatsCount}
       />
