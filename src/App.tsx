@@ -76,9 +76,8 @@ export default function App() {
       
       const localCustom = localStorage.getItem('tambu_local_properties');
       const parsedLocal: Property[] = localCustom ? JSON.parse(localCustom) : [];
-      const filteredLocal = parsedLocal.filter(p => p.ownerId !== 'system_admin_or_owner_seed');
       
-      filteredLocal.forEach(p => {
+      parsedLocal.forEach(p => {
         if (!list.some(existing => existing.id === p.id)) {
           list.push(p);
         }
@@ -86,7 +85,7 @@ export default function App() {
 
       if (cached) {
         const parsed: Property[] = JSON.parse(cached);
-        parsed.filter(p => p.ownerId !== 'system_admin_or_owner_seed').forEach(p => {
+        parsed.forEach(p => {
           if (!list.some(existing => existing.id === p.id)) {
             list.push(p);
           }
@@ -769,10 +768,9 @@ export default function App() {
         if (supProps && active) {
           const localCustom = localStorage.getItem('tambu_local_properties');
           const parsedLocal: Property[] = localCustom ? JSON.parse(localCustom) : [];
-          const filteredLocal = parsedLocal.filter(p => p.ownerId !== 'system_admin_or_owner_seed');
 
           const merged: Property[] = [];
-          filteredLocal.forEach((localProp) => {
+          parsedLocal.forEach((localProp) => {
             if (!merged.some(p => p.id === localProp.id)) {
               merged.push(localProp);
             }
@@ -805,19 +803,15 @@ export default function App() {
       const items: Property[] = [];
       snapshot.forEach((docSnap) => {
         const item = { id: docSnap.id, ...docSnap.data() } as Property;
-        // Filter out any automated/pre-seeded mock properties
-        if (item.ownerId !== 'system_admin_or_owner_seed') {
-          items.push(item);
-        }
+        items.push(item);
       });
 
       // Integrate locally staged custom user-posted properties with highest priority
       const localCustom = localStorage.getItem('tambu_local_properties');
       const parsedLocal: Property[] = localCustom ? JSON.parse(localCustom) : [];
-      const filteredLocal = parsedLocal.filter(p => p.ownerId !== 'system_admin_or_owner_seed');
 
       const merged: Property[] = [];
-      filteredLocal.forEach((localProp) => {
+      parsedLocal.forEach((localProp) => {
         if (!merged.some(p => p.id === localProp.id)) {
           merged.push(localProp);
         }
@@ -859,7 +853,7 @@ export default function App() {
       if (cachedProps) {
         try {
           const parsed = JSON.parse(cachedProps);
-          let filteredParsed = parsed.filter((p: Property) => p.ownerId !== 'system_admin_or_owner_seed');
+          let filteredParsed = parsed;
           try {
             const deletedKey = 'tambu_deleted_property_ids';
             const cachedDeleted = localStorage.getItem(deletedKey);
