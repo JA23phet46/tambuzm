@@ -751,9 +751,16 @@ export async function createPropertyListing(property: Property): Promise<void> {
       try {
         localStorage.setItem(propCacheKey, JSON.stringify(propList));
       } catch (quotaErr) {
-        // If quota exceeded, slice to latest 30 properties to fit storage
-        const trimmed = propList.slice(0, 30);
-        localStorage.setItem(propCacheKey, JSON.stringify(trimmed));
+        try {
+          // If quota exceeded, slice to latest 15 properties and remove heavy base64 strings if needed
+          const trimmed = propList.slice(0, 15).map(p => ({
+            ...p,
+            photos: (p.photos || []).map(ph => ph && ph.startsWith('data:') ? 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&q=80' : ph)
+          }));
+          localStorage.setItem(propCacheKey, JSON.stringify(trimmed));
+        } catch (innerErr) {
+          localStorage.removeItem(propCacheKey);
+        }
       }
     }
   } catch (e) {
