@@ -77,9 +77,9 @@ export const Header: React.FC<HeaderProps> = ({
           Saved
         </button>
         <button
-          onClick={() => onNavigate(isLoggedIn ? (userRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard') : 'login')}
+          onClick={() => onNavigate(isLoggedIn ? 'seeker-dashboard' : 'login')}
           className={`font-semibold text-sm transition-colors py-2 px-3 rounded-lg ${
-            ['seeker-dashboard', 'owner-dashboard'].includes(currentPage) ? 'text-[#b52330] font-bold' : 'text-[#5a403f] hover:bg-[#f0eded]'
+            currentPage === 'seeker-dashboard' ? 'text-[#b52330] font-bold' : 'text-[#5a403f] hover:bg-[#f0eded]'
           }`}
         >
           Dashboard
@@ -110,7 +110,7 @@ export const Header: React.FC<HeaderProps> = ({
                 Log Out
               </button>
               <div 
-                onClick={() => onNavigate(userRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard')}
+                onClick={() => onNavigate('seeker-dashboard')}
                 className="w-9 h-9 rounded-full bg-[#ffdad8] flex items-center justify-center border border-[#e4e2e2] cursor-pointer hover:border-[#b52330] transition-colors"
                 title="View Dashboard"
               >

@@ -175,10 +175,10 @@ service cloud.firestore {
     // 1. Users profile
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidUserProfile(incoming());
-      allow update: if isOwner(userId) && isValidUserProfile(incoming()) 
+      allow create: if (isOwner(userId) || isAdmin()) && isValidUserProfile(incoming());
+      allow update: if (isOwner(userId) || isAdmin()) && isValidUserProfile(incoming()) 
         && incoming().userId == existing().userId
-        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'isSubscribed', 'subscriptionExpiresAt', 'trialEndsAt']);
+        && (isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'role', 'savedIds', 'isSubscribed', 'subscriptionExpiresAt', 'trialEndsAt']));
       allow delete: if isAdmin();
 
       // Nested searches collection

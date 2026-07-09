@@ -48,14 +48,14 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           if (!isLoggedIn) {
             onNavigate('login');
           } else {
-            onNavigate(userRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
+            onNavigate('seeker-dashboard');
           }
         }}
         className={`flex flex-col items-center justify-center w-16 h-12 transition-all ${
-          ['seeker-dashboard', 'owner-dashboard'].includes(currentPage) ? 'text-[#b52330]' : 'text-[#5a403f] hover:text-[#b52330]'
+          currentPage === 'seeker-dashboard' ? 'text-[#b52330]' : 'text-[#5a403f] hover:text-[#b52330]'
         }`}
       >
-        <LayoutDashboard className={`w-5 h-5 ${['seeker-dashboard', 'owner-dashboard'].includes(currentPage) ? 'stroke-[2.5px]' : ''}`} />
+        <LayoutDashboard className={`w-5 h-5 ${currentPage === 'seeker-dashboard' ? 'stroke-[2.5px]' : ''}`} />
         <span className="text-[10px] mt-1 font-semibold">Dashboard</span>
       </button>
 

@@ -1373,19 +1373,22 @@ export default function App() {
     e.preventDefault();
     if (!regEmail || !regName || !regPhone || !regPassword) return;
 
+    const isSystemAdminMail = regEmail.toLowerCase() === 'admin@tambu.com';
+    const finalRole = isSystemAdminMail ? UserRole.OWNER : UserRole.SEEKER;
+
     try {
       const credential = await createUserWithEmailAndPassword(auth, regEmail, regPassword);
       
       const now = new Date();
       const trialDate = new Date();
-      trialDate.setDate(now.getDate() + 7); // 7-day trials for owners
+      trialDate.setDate(now.getDate() + 7);
 
       const newProfile = {
         userId: credential.user.uid,
         name: regName,
         email: regEmail,
         phone: regPhone,
-        role: regRole,
+        role: finalRole,
         savedIds: [],
         createdAt: now.toISOString(),
         trialEndsAt: trialDate.toISOString(),
@@ -1396,17 +1399,17 @@ export default function App() {
       
       setTrialEndsAt(newProfile.trialEndsAt);
       setIsSubscribed(false);
-      setUserRole(regRole);
+      setUserRole(finalRole);
+      setIsAdmin(isSystemAdminMail);
       setRegEmail('');
       setRegName('');
       setRegPhone('');
       setRegPassword('');
       triggerToast('Account created successfully!', 'success');
-      navigateTo(regRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
+      navigateTo(finalRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
     } catch (err: any) {
       console.warn("Real database registration failed. Activating local Sandbox fallback:", err);
       
-      // If Supabase is configured and registration failed, display the actual error
       if (isSupabaseConfigured()) {
         const errorMsg = err.message || err.description || String(err);
         setAuthErrorMsg(`Supabase Registration failed: ${errorMsg}`);
@@ -1416,7 +1419,7 @@ export default function App() {
 
       const now = new Date();
       const trialDate = new Date();
-      trialDate.setDate(now.getDate() + 7); // 7-day trial for owners
+      trialDate.setDate(now.getDate() + 7);
       
       const simulatedUid = 'sandbox_' + Math.random().toString(36).substring(2, 11);
       const newProfile = {
@@ -1424,7 +1427,7 @@ export default function App() {
         name: regName,
         email: regEmail,
         phone: regPhone,
-        role: regRole,
+        role: finalRole,
         savedIds: [],
         createdAt: now.toISOString(),
         trialEndsAt: trialDate.toISOString(),
@@ -1432,12 +1435,9 @@ export default function App() {
         subscriptionExpiresAt: null
       };
 
-      // Save user sandbox profile mock to LocalStorage
       try {
         localStorage.setItem(`tambu_profile_fallback_${simulatedUid}`, JSON.stringify(newProfile));
-      } catch (e) {
-        console.error("Local storage mock save failed:", e);
-      }
+      } catch (e) {}
 
       const simulatedUserObj = {
         uid: simulatedUid,
@@ -1451,7 +1451,8 @@ export default function App() {
       setUserName(regName);
       setUserEmail(regEmail);
       setUserPhone(regPhone);
-      setUserRole(regRole);
+      setUserRole(finalRole);
+      setIsAdmin(isSystemAdminMail);
       setTrialEndsAt(newProfile.trialEndsAt);
       setIsSubscribed(false);
       
@@ -1461,7 +1462,7 @@ export default function App() {
       setRegPassword('');
       
       triggerToast('Auth service offline. Activated local Sandbox Account!', 'success');
-      navigateTo(regRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
+      navigateTo(finalRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
     }
   };
 
@@ -1521,6 +1522,13 @@ export default function App() {
 
   // --- Property creation by owners ---
   const handlePublishListing = async (input: NewListingInput) => {
+    const currentEmail = userEmail || currentUser?.email || '';
+    if (currentEmail.toLowerCase() !== 'admin@tambu.com' && !isAdmin) {
+      triggerToast('Only admin@tambu.com can post properties. Boardinghouse seekers can browse and rent rooms.', 'error');
+      navigateTo('discovery');
+      return;
+    }
+
     if (!currentUser) {
       triggerToast('Please sign in to list properties', 'error');
       navigateTo('login');
@@ -2327,41 +2335,14 @@ export default function App() {
                     ) : (
                       /* SIGN UP FORM */
                       <form onSubmit={handleRegisterSubmit} className="space-y-4">
-                        {/* Elegant Selector for Account Purpose */}
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block text-center">
-                            I want to:
-                          </label>
-                          <div className="grid grid-cols-2 gap-1.5 bg-slate-50 p-1 rounded-xl border border-slate-100 select-none">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setRegRole(UserRole.SEEKER);
-                                setUserRole(UserRole.SEEKER);
-                              }}
-                              className={`py-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer text-center ${
-                                regRole === UserRole.SEEKER
-                                  ? 'bg-white text-[#b52330] shadow-sm font-black'
-                                  : 'text-slate-500 hover:text-slate-900'
-                              }`}
-                            >
-                              Rent a Room
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setRegRole(UserRole.OWNER);
-                                setUserRole(UserRole.OWNER);
-                              }}
-                              className={`py-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer text-center ${
-                                regRole === UserRole.OWNER
-                                  ? 'bg-white text-[#b52330] shadow-sm font-black'
-                                  : 'text-slate-500 hover:text-slate-900'
-                              }`}
-                            >
-                              List a Room
-                            </button>
-                          </div>
+                        {/* Notice for Boardinghouse Seeker Account */}
+                        <div className="bg-[#fbf9f8] p-3 rounded-xl border border-[#e4e2e2] text-center space-y-1">
+                          <span className="text-[10px] uppercase font-bold text-[#b52330] tracking-wider block">
+                            Boardinghouse Seeker Account
+                          </span>
+                          <p className="text-[11px] text-[#5a403f] leading-relaxed">
+                            Create your account to browse, save, and rent rooms. Property listings are exclusively managed and posted by admin@tambu.com.
+                          </p>
                         </div>
 
                         <div className="space-y-3">

@@ -165,39 +165,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <p className="text-xs sm:text-sm text-[#ffdad8] max-w-xl leading-relaxed">
             {isAdmin 
               ? 'Welcome to the master admin hub. Oversee live renter payments, track system-wide placements, check owner standard subscription logs, and verify compliance.'
-              : userRole === UserRole.OWNER 
-                ? 'Manage your property placements, track free trial timelines, view active renter rent payments, and check billing history logs.'
-                : 'Browse personalized recommendations, saved listings shortcuts, and active search histories.'
+              : 'Browse personalized recommendations, saved listings shortcuts, and active search histories.'
             }
           </p>
-
-          {/* Quick Role Switcher for instant Seeker <-> Lister toggling */}
-          <div className="flex items-center gap-2 bg-white/20 p-1.5 rounded-xl backdrop-blur-sm self-start inline-flex mt-3 border border-white/20">
-            <span className="text-[10px] font-bold text-white/90 pl-1 uppercase tracking-wider">Account Mode:</span>
-            <button
-              type="button"
-              onClick={() => onSwitchRole(UserRole.SEEKER)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                userRole === UserRole.SEEKER ? 'bg-white text-[#b52330] shadow-sm font-black' : 'text-white hover:bg-white/10'
-              }`}
-            >
-              Seeker Mode
-            </button>
-            <button
-              type="button"
-              onClick={() => onSwitchRole(UserRole.OWNER)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                userRole === UserRole.OWNER ? 'bg-white text-[#b52330] shadow-sm font-black' : 'text-white hover:bg-white/10'
-              }`}
-            >
-              Lister (Owner) Mode
-            </button>
-          </div>
         </div>
       </section>
 
-      {/* RENDER OWNER & ADMIN PORTFOLIO PANEL */}
-      {userRole === UserRole.OWNER ? (
+      {/* RENDER ADMIN PANEL OR SEEKER DASHBOARD */}
+      {isAdmin ? (
         <div className="space-y-10">
           
           {/* PAYMENT MANAGEMENT SECTION */}

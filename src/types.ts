@@ -118,7 +118,7 @@ export interface SupportMessage {
 }
 
 export interface AppState {
-  currentPage: string; // 'discovery' | 'saved' | 'seeker-dashboard' | 'owner-dashboard' | 'details' | 'checkout' | 'payment-waiting' | 'payment-airtel' | 'filters' | 'add-property' | 'select-photos' | 'login' | 'register'
+  currentPage: string; // 'discovery' | 'saved' | 'seeker-dashboard' | 'details' | 'checkout' | 'payment-waiting' | 'payment-airtel' | 'filters' | 'add-property' | 'select-photos' | 'login' | 'register'
   selectedProperty: Property | null;
   properties: Property[];
   savedIds: string[];
