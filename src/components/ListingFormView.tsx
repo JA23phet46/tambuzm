@@ -363,7 +363,7 @@ export const ListingFormView: React.FC<ListingFormViewProps> = ({
             type="submit"
             className="flex-1 py-3.5 bg-[#b52330] hover:bg-[#9a1c26] text-white rounded-xl text-xs font-extrabold active:scale-95 transition-all shadow-md"
           >
-            Publish Listing (K100 Placement)
+            Publish Listing
           </button>
         </div>
 

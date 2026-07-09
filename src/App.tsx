@@ -1522,13 +1522,6 @@ export default function App() {
 
   // --- Property creation by owners ---
   const handlePublishListing = async (input: NewListingInput) => {
-    const currentEmail = userEmail || currentUser?.email || '';
-    if (currentEmail.toLowerCase() !== 'admin@tambu.com' && !isAdmin) {
-      triggerToast('Only admin@tambu.com can post properties. Boardinghouse seekers can browse and rent rooms.', 'error');
-      navigateTo('discovery');
-      return;
-    }
-
     if (!currentUser) {
       triggerToast('Please sign in to list properties', 'error');
       navigateTo('login');
@@ -2341,7 +2334,7 @@ export default function App() {
                             Boardinghouse Seeker Account
                           </span>
                           <p className="text-[11px] text-[#5a403f] leading-relaxed">
-                            Create your account to browse, save, and rent rooms. Property listings are exclusively managed and posted by admin@tambu.com.
+                            Create your account to browse, save, and list properties securely.
                           </p>
                         </div>
 
