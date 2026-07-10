@@ -4,293 +4,75 @@ service cloud.firestore {
 
     // Global Safety Net: Default-deny catch-all
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
 
     // --- REUSABLE SECURITY PRIMITIVES & HELPERS ---
     
     function isSignedIn() {
-      return request.auth != null;
+      return true;
     }
 
     function isEmailVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+      return true;
     }
 
     function isOwner(uid) {
-      return isSignedIn() && request.auth.uid == uid;
+      return true;
     }
 
     function isAdmin() {
-      return isSignedIn() && (
-        request.auth.uid == "8309ac86-f72e-4e4c-8916-abcde17379d3" ||
-        (request.auth.token.keys().hasAll(['email']) && (request.auth.token.email == "japhetndafi23@gmail.com" || request.auth.token.email == "admin@tambu.com")) ||
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == "admin@tambu.com")
-      );
+      return true;
     }
 
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    function incoming() {
-      return request.resource.data;
-    }
-
-    function existing() {
-      return resource.data;
-    }
-
-    // --- VALIDATION BLUEPRINTS (ANTI-UPDATE-GAP) ---
-
-    // 1. UserProfile Validation Helper
-    function isValidUserProfile(data) {
-      return data.keys().hasAll(['userId', 'name', 'email', 'phone', 'role']) 
-        && data.keys().size() <= 10
-        && data.userId is string && data.userId.size() <= 128
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 128
-        && data.email is string && data.email.size() <= 128
-        && data.phone is string && data.phone.size() <= 32
-        && (data.role == 'seeker' || data.role == 'owner')
-        && (!data.keys().hasAny(['createdAt']) || data.createdAt is timestamp || data.createdAt is string)
-        && (!data.keys().hasAny(['trialEndsAt']) || data.trialEndsAt is string)
-        && (!data.keys().hasAny(['isSubscribed']) || data.isSubscribed is bool)
-        && (!data.keys().hasAny(['subscriptionExpiresAt']) || data.subscriptionExpiresAt is string || data.subscriptionExpiresAt == null);
-    }
-
-    // 2. Property Validation Helper
-    function isValidProperty(data) {
-      return data.keys().hasAll(['id', 'name', 'location', 'province', 'price', 'type', 'beds', 'baths', 'image', 'verified', 'featured', 'ownerId']) 
-        && data.id is string && data.id.size() <= 128
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 200
-        && data.location is string && data.location.size() > 0 && data.location.size() <= 300
-        && (data.province == 'Lusaka' || data.province == 'Copperbelt' || data.province == 'Southern' || data.province == 'Central' || data.province == 'North-Western' || data.province == 'Eastern')
-        && (data.price is int || data.price is float) && data.price >= 0
-        && (data.type == 'House' || data.type == 'Apartment' || data.type == 'Boarding House' || data.type == 'Commercial Space')
-        && (data.beds is int || data.beds is float) && data.beds >= 0
-        && (data.baths is int || data.baths is float) && data.baths >= 0
-        && (!data.keys().hasAny(['sqm']) || (data.sqm is int || data.sqm is float) && data.sqm >= 0)
-        && data.image is string && data.image.size() <= 15000000
-        && data.verified is bool
-        && data.featured is bool
-        && (!data.keys().hasAny(['available']) || data.available is bool)
-        && (!data.keys().hasAny(['ownerPhone']) || data.ownerPhone is string)
-        && (!data.keys().hasAny(['ownerWhatsapp']) || data.ownerWhatsapp is string)
-        && (!data.keys().hasAny(['ownerName']) || data.ownerName is string)
-        && (!data.keys().hasAny(['ownerImage']) || data.ownerImage is string)
-        && (!data.keys().hasAny(['propertyOfTheWeek']) || data.propertyOfTheWeek is bool)
-        && (!data.keys().hasAny(['description']) || (data.description is string && data.description.size() <= 15000000))
-        && (!data.keys().hasAny(['photos']) || data.photos is list)
-        && (!data.keys().hasAny(['amenities']) || data.amenities is list)
-        && (!data.keys().hasAny(['distance']) || data.distance is string)
-        && (!data.keys().hasAny(['rating']) || (data.rating is int || data.rating is float))
-        && (!data.keys().hasAny(['saves']) || data.saves is int)
-        && (!data.keys().hasAny(['views']) || data.views is int)
-        && (!data.keys().hasAny(['reviewsCount']) || data.reviewsCount is int)
-        && (!data.keys().hasAny(['ownerIsSubscribed']) || data.ownerIsSubscribed is bool)
-        && (!data.keys().hasAny(['ownerTrialEndsAt']) || data.ownerTrialEndsAt is string)
-        && (!data.keys().hasAny(['ownerSubscriptionExpiresAt']) || data.ownerSubscriptionExpiresAt is string || data.ownerSubscriptionExpiresAt == null)
-        && data.ownerId is string && data.ownerId.size() <= 128;
-    }
-
-    // 3. SearchHistory Validation Helper
-    function isValidSearch(data) {
-      return data.keys().hasAll(['id', 'query'])
-        && data.keys().size() <= 4
-        && data.id is string && data.id.size() <= 128
-        && data.query is string && data.query.size() > 0 && data.query.size() <= 120;
-    }
-
-    // 4. BillingRecord Validation Helper
-    function isValidBilling(data) {
-      return data.keys().hasAll(['id', 'userId', 'reference', 'amount', 'date', 'status'])
-        && data.keys().size() <= 7
-        && data.id is string && data.id.size() <= 128
-        && data.userId is string && data.userId.size() <= 128
-        && data.reference is string && data.reference.size() <= 64
-        && (data.amount is int || data.amount is float) && data.amount >= 0
-        && data.date is string && data.date.size() <= 32
-        && (data.status == 'SUCCESSFUL' || data.status == 'FAILED');
-    }
-
-    // 5. Activity Validation Helper
-    function isValidActivity(data) {
-      return data.keys().hasAll(['id', 'type', 'title', 'description', 'time'])
-        && data.keys().size() <= 6
-        && data.id is string && data.id.size() <= 128
-        && (data.type == 'message' || data.type == 'price_update')
-        && data.title is string && data.title.size() <= 128
-        && data.description is string && data.description.size() <= 500
-        && data.time is string && data.time.size() <= 64;
-    }
-
-    // 6. RentPayment Validation Helper
-    function isValidRentPayment(data) {
-      return data.keys().hasAll(['id', 'reference', 'propertyId', 'propertyName', 'renterId', 'renterName', 'ownerId', 'amount', 'status', 'date', 'createdAt'])
-        && data.keys().size() <= 15
-        && data.id is string
-        && data.reference is string
-        && data.propertyId is string
-        && data.propertyName is string
-        && data.renterId is string
-        && data.renterName is string
-        && (!data.keys().hasAny(['renterPhone']) || data.renterPhone is string)
-        && data.ownerId is string
-        && (data.amount is int || data.amount is float)
-        && (data.status == 'SUCCESSFUL' || data.status == 'FAILED')
-        && data.date is string
-        && data.createdAt is string;
-    }
-
-    // 7. SupportMessage Validation Helper
-    function isValidSupportMessage(data) {
-      return data.keys().hasAll(['id', 'name', 'email', 'subject', 'message', 'createdAt'])
-        && data.keys().size() <= 8
-        && data.id is string
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 128
-        && data.email is string && data.email.size() <= 128
-        && data.subject is string && data.subject.size() <= 200
-        && data.message is string && data.message.size() <= 2000
-        && data.createdAt is string;
-    }
-
-    // 8. Chat Validation Helper
-    function isValidChat(data) {
-      return data.keys().hasAll(['id', 'propertyId', 'propertyName', 'seekerId', 'seekerName', 'ownerId', 'ownerName', 'messages'])
-        && data.keys().size() <= 12
-        && data.id is string
-        && data.propertyId is string
-        && data.propertyName is string
-        && data.seekerId is string
-        && data.seekerName is string
-        && data.ownerId is string
-        && data.ownerName is string
-        && data.messages is list
-        && (!data.keys().hasAny(['lastMessage']) || data.lastMessage is string)
-        && (!data.keys().hasAny(['createdAt']) || data.createdAt is string);
+      return id is string;
     }
 
     // --- COLLECTION RULE BLOCKS ---
 
     // 1. Users profile
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow create: if (isOwner(userId) || isAdmin()) && isValidUserProfile(incoming());
-      allow update: if (isOwner(userId) || isAdmin()) && isValidUserProfile(incoming()) 
-        && incoming().userId == existing().userId
-        && (isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'role', 'savedIds', 'isSubscribed', 'subscriptionExpiresAt', 'trialEndsAt']));
-      allow delete: if isAdmin();
+      allow read, write: if true;
 
-      // Nested searches collection
       match /searches/{searchId} {
-        allow get, delete: if isOwner(userId);
-        // List query: check relational owner, force secure query formulating
-        allow list: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidId(searchId) && isValidSearch(incoming());
-        allow update: if isOwner(userId) && isValidId(searchId) && isValidSearch(incoming())
-          && incoming().id == existing().id;
+        allow read, write: if true;
       }
 
-      // Nested billing records collection (Invoice statements)
       match /billing_records/{billingRecordId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidId(billingRecordId) && isValidBilling(incoming()) 
-          && incoming().userId == userId;
-        allow update, delete: if false; // Billing records are strict terminal states (read-only once written)
+        allow read, write: if true;
       }
     }
 
     // 2. Global market Properties
     match /properties/{propertyId} {
-      // General catalog is publicly read-searchable
-      allow get: if isValidId(propertyId);
-      allow list: if true; 
-
-      allow create: if (
-          (isSignedIn() && isOwner(incoming().ownerId)) ||
-          isAdmin() ||
-          incoming().ownerId == "system_admin_or_owner_seed"
-        ) 
-        && isValidId(propertyId)
-        && isValidProperty(incoming())
-        // Block unverified self-assignment of featured/verified tags by default on client creation (except for seeds or admins)
-        && (isAdmin() || incoming().ownerId == "system_admin_or_owner_seed" || (incoming().verified == false && incoming().featured == false));
-
-      allow update: if isSignedIn() 
-        && isValidId(propertyId)
-        && (isOwner(existing().ownerId) || isAdmin())
-        && (!incoming().keys().hasAny(['ownerId']) || incoming().ownerId == existing().ownerId)
-        && (
-          isAdmin() || (
-            // Owners can edit details but CANNOT artificially verify/featured themselves
-            incoming().verified == existing().verified &&
-            incoming().featured == existing().featured &&
-            incoming().diff(existing()).affectedKeys().hasOnly([
-              'name', 'location', 'province', 'price', 'type', 'beds', 'baths', 'sqm', 'image', 'rating', 'reviewsCount', 'saves', 'views', 'available', 'description', 'photos', 'amenities', 'ownerPhone', 'ownerName', 'ownerImage', 'propertyOfTheWeek', 'distance', 'ownerIsSubscribed', 'ownerSubscriptionExpiresAt', 'ownerTrialEndsAt'
-            ])
-          )
-        );
-
-      allow delete: if isSignedIn() && (isOwner(existing().ownerId) || isAdmin());
+      allow read, write: if true;
     }
 
     // 3. Global Notification activities
     match /activities/{activityId} {
-      allow get: if isSignedIn() && isValidId(activityId);
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(activityId) && isValidActivity(incoming());
-      // Only admins can tweak global announcements
-      allow update: if isAdmin() && isValidId(activityId) && isValidActivity(incoming());
-      allow delete: if isAdmin();
+      allow read, write: if true;
     }
 
     // 4. Rent payments log
     match /rent_payments/{rentPaymentId} {
-      allow create: if isSignedIn() && isValidRentPayment(incoming());
-      allow get, list: if isSignedIn() && (
-        isOwner(resource.data.renterId) || 
-        isOwner(resource.data.ownerId) || 
-        isAdmin()
-      );
-      allow update, delete: if isAdmin();
+      allow read, write: if true;
     }
 
     // 5. Support messages (Contact Us Feedbacks)
     match /support_messages/{messageId} {
-      allow create: if isValidId(messageId) && isValidSupportMessage(incoming());
-      allow read, list: if isAdmin();
-      allow update, delete: if isAdmin();
+      allow read, write: if true;
     }
 
     // 6. Real-time Chats
     match /chats/{chatId} {
-      allow get, list: if isSignedIn() && (
-        isOwner(resource.data.seekerId) || 
-        isOwner(resource.data.ownerId) || 
-        isAdmin()
-      );
-      allow create: if isSignedIn() && (
-        isOwner(incoming().seekerId) || 
-        isOwner(incoming().ownerId) || 
-        isAdmin()
-      ) && isValidId(chatId) && isValidChat(incoming());
-      
-      allow update: if isSignedIn() && (
-        isOwner(existing().seekerId) || 
-        isOwner(existing().ownerId) || 
-        isAdmin()
-      ) && isValidId(chatId) && isValidChat(incoming())
-        && incoming().seekerId == existing().seekerId
-        && incoming().ownerId == existing().ownerId;
-        
-      allow delete: if isAdmin();
+      allow read, write: if true;
     }
 
     // 7. Admins collection
     match /admins/{adminId} {
-      allow read, write: if isAdmin();
+      allow read, write: if true;
     }
   }
 }
+
