@@ -1,920 +1,147 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Building2, GraduationCap, Grid, Heart, List, 
-  MapPin, User, LogIn, Lock, Mail, Phone, Compass, Check, AlertCircle 
+  Home, Search, Heart, User, LogIn, LogOut, Plus, 
+  MapPin, Bed, Bath, Phone, MessageSquare, Check, X, Shield, 
+  ArrowLeft, Trash2, Edit3, Image as ImageIcon, Upload, 
+  LayoutDashboard, Mail, PhoneCall, Building
 } from 'lucide-react';
-import { 
-  Property, Province, PropertyType, UserRole, Activity, 
-  SearchHistory, BillingRecord, NewListingInput, RentPayment, SupportMessage, isPropertyActive 
-} from './types';
-import { 
-  INITIAL_PROPERTIES, INITIAL_ACTIVITIES, INITIAL_SEARCHES, 
-  INITIAL_BILLING_RECORDS 
-} from './data';
-
-// Client Auth and Database Imports (Backed by Supabase Auth)
-import { 
-  auth, db, handleFirestoreError, OperationType, 
-  loginWithGoogle, logoutUser, getUserProfile, saveUserProfile, 
-  updateSavedProperties, createPropertyListing, deletePropertyListing, updatePropertyListing,
-  addSearchHistory, getSearchHistory, addBillingRecord, getBillingRecords,
-  addRentPayment, getAllRentPayments, getRentPaymentsForOwner, getRentPaymentsForRenter,
-  createSupportMessage, getAllSupportMessages,
-  onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  getSupabaseClient
-} from './firebase';
-import { onSnapshot, collection, query, where, or } from 'firebase/firestore';
-
-// Modular Sub-components
-import { Header } from './components/Header';
-import { BottomNav } from './components/BottomNav';
-import { DiscoveryView } from './components/DiscoveryView';
-import { PropertyDetailsView } from './components/PropertyDetailsView';
-import { ContactView } from './components/ContactView';
-import { FiltersView } from './components/FiltersView';
-import { CheckoutView } from './components/CheckoutView';
-import { ProcessingView } from './components/ProcessingView';
-import { DashboardView } from './components/DashboardView';
-import { ListingFormView } from './components/ListingFormView';
-import { PhotoSelectorView } from './components/PhotoSelectorView';
-import { ChatView } from './components/ChatView';
-
-// Supabase Integration
-import { isSupabaseConfigured, savePropertyToSupabase, getPropertiesFromSupabase } from './supabase';
-
-const BACKEND_BASE = 'https://ais-dev-ujdcsokgyikdtfj2x5h4up-529746612452.europe-west2.run.app';
-
-async function callBackendApi(endpoint: string, options?: RequestInit): Promise<Response> {
-  try {
-    const res = await fetch(endpoint, options);
-    if (res.ok || res.status < 500) {
-      if (res.status === 404 && !window.location.hostname.includes('run.app') && !window.location.hostname.includes('localhost')) {
-        return await fetch(`${BACKEND_BASE}${endpoint}`, options);
-      }
-      return res;
-    }
-    return await fetch(`${BACKEND_BASE}${endpoint}`, options);
-  } catch (err) {
-    try {
-      return await fetch(`${BACKEND_BASE}${endpoint}`, options);
-    } catch (remoteErr) {
-      throw remoteErr;
-    }
-  }
-}
+import { Property, Province, PropertyType } from './types';
+import { INITIAL_PROPERTIES } from './data';
 
 export default function App() {
-  // --- Persistent State hooks ---
-  const [currentPage, setCurrentPage] = useState<string>(() => {
-    return localStorage.getItem('tambu_page') || 'discovery';
-  });
-  
+  // --- Persistent State ---
   const [properties, setProperties] = useState<Property[]>(() => {
     const cached = localStorage.getItem('tambu_properties');
-    try {
-      let list: Property[] = [];
-      
-      const localCustom = localStorage.getItem('tambu_local_properties');
-      const parsedLocal: Property[] = localCustom ? JSON.parse(localCustom) : [];
-      
-      parsedLocal.forEach(p => {
-        if (!list.some(existing => existing.id === p.id)) {
-          list.push(p);
-        }
-      });
-
-      if (cached) {
-        const parsed: Property[] = JSON.parse(cached);
-        parsed.forEach(p => {
-          if (!list.some(existing => existing.id === p.id)) {
-            list.push(p);
-          }
-        });
-      }
-      
-      // Ensure INITIAL_PROPERTIES are included if not present
-      INITIAL_PROPERTIES.forEach((initProp) => {
-        if (!list.some(p => p.id === initProp.id)) {
-          list.push(initProp);
-        }
-      });
-
+    if (cached) {
       try {
-        const deletedKey = 'tambu_deleted_property_ids';
-        const cachedDeleted = localStorage.getItem(deletedKey);
-        const deletedList = cachedDeleted ? JSON.parse(cachedDeleted) : [];
-        if (Array.isArray(deletedList) && deletedList.length > 0) {
-          list = list.filter(p => !deletedList.includes(p.id));
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const merged = [...parsed];
+          INITIAL_PROPERTIES.forEach(init => {
+            if (!merged.some(p => p.id === init.id)) {
+              merged.push(init);
+            }
+          });
+          return merged;
         }
-      } catch (_) {}
-      return list;
-    } catch (_) {
-      return [...INITIAL_PROPERTIES];
+      } catch (e) {}
     }
+    return INITIAL_PROPERTIES;
   });
 
   const [savedIds, setSavedIds] = useState<string[]>(() => {
-    const cached = localStorage.getItem('tambu_saved_ids');
-    try {
-      return cached ? JSON.parse(cached) : [];
-    } catch (_) {
-      return [];
+    const cached = localStorage.getItem('tambu_saved');
+    if (cached) {
+      try { return JSON.parse(cached); } catch (e) {}
     }
-  });
-
-  const [userRole, setUserRole] = useState<UserRole>(() => {
-    const cached = localStorage.getItem('tambu_role');
-    return (cached as UserRole) || UserRole.SEEKER;
+    return [];
   });
 
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     return localStorage.getItem('tambu_logged_in') === 'true';
   });
 
-  const [userName, setUserName] = useState<string>(() => {
-    return localStorage.getItem('tambu_user_name') || '';
-  });
-
   const [userEmail, setUserEmail] = useState<string>(() => {
     return localStorage.getItem('tambu_user_email') || '';
   });
 
-  const [userPhone, setUserPhone] = useState<string>(() => {
-    return localStorage.getItem('tambu_user_phone') || '';
+  const [userName, setUserName] = useState<string>(() => {
+    return localStorage.getItem('tambu_user_name') || 'Guest User';
   });
 
-  // --- Dynamic Application state hooks ---
+  const [currentPage, setCurrentPage] = useState<'discovery' | 'details' | 'saved' | 'admin-dashboard' | 'contact' | 'auth'>('discovery');
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(() => {
-    const saved = localStorage.getItem('tambu_selected_property');
-    try {
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
+    const cached = localStorage.getItem('tambu_selected_property');
+    if (cached) {
+      try { return JSON.parse(cached); } catch (e) {}
     }
+    return null;
   });
+
+  // Filters & Search
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedProvince, setSelectedProvince] = useState<Province | ''>('');
-  const [minPrice, setMinPrice] = useState(100);
-  const [maxPrice, setMaxPrice] = useState(5000000);
-  const [selectedPropertyTypes, setSelectedPropertyTypes] = useState<PropertyType[]>([]);
-  const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
+  const [selectedProvince, setSelectedProvince] = useState<Province | 'All'>('All');
+  const [selectedType, setSelectedType] = useState<PropertyType | 'All'>('All');
 
-  const [isSubscriptionExpired, setIsSubscriptionExpired] = useState<boolean>(() => {
-    return localStorage.getItem('tambu_subscription_expired') === 'true';
-  });
+  // Auth form state
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authName, setAuthName] = useState('');
 
-  const [subscriptionExpiry, setSubscriptionExpiry] = useState<string>(() => {
-    return localStorage.getItem('tambu_subscription_expiry') || 'June 22, 2026';
-  });
-
-  const [checkoutItem, setCheckoutItem] = useState<{
-    name: string;
-    detail: string;
-    amount: number;
-    reference: string;
-    type: 'listing' | 'subscription';
-  } | null>(() => {
-    const saved = localStorage.getItem('tambu_checkout_item');
-    try {
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-
-  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
-    return localStorage.getItem('tambu_is_admin') === 'true';
-  });
-
-  const [adminModeActive, setAdminModeActive] = useState<boolean>(() => {
-    return localStorage.getItem('tambu_admin_mode_active') === 'true';
-  });
-
-  const [trialEndsAt, setTrialEndsAt] = useState<string>(() => {
-    return localStorage.getItem('tambu_trial_ends') || '';
-  });
-
-  const [isSubscribed, setIsSubscribed] = useState<boolean>(() => {
-    return localStorage.getItem('tambu_is_subscribed') === 'true';
-  });
-
-  const [rentPayments, setRentPayments] = useState<RentPayment[]>([]);
-  const [chatsCount, setChatsCount] = useState<number>(0);
-
-  useEffect(() => {
-    localStorage.setItem('tambu_is_admin', String(isAdmin));
-  }, [isAdmin]);
-
-  useEffect(() => {
-    localStorage.setItem('tambu_user_phone', userPhone || '');
-  }, [userPhone]);
-
-  useEffect(() => {
-    localStorage.setItem('tambu_user_email', userEmail || '');
-  }, [userEmail]);
-
-  useEffect(() => {
-    localStorage.setItem('tambu_logged_in', isLoggedIn ? 'true' : 'false');
-  }, [isLoggedIn]);
-
-  useEffect(() => {
-    localStorage.setItem('tambu_user_name', userName || '');
-  }, [userName]);
-
-  useEffect(() => {
-    localStorage.setItem('tambu_role', userRole || '');
-  }, [userRole]);
-
-  useEffect(() => {
-    if (selectedProperty) {
-      localStorage.setItem('tambu_selected_property', JSON.stringify(selectedProperty));
-    } else {
-      localStorage.removeItem('tambu_selected_property');
-    }
-  }, [selectedProperty]);
-
-  useEffect(() => {
-    if (checkoutItem) {
-      localStorage.setItem('tambu_checkout_item', JSON.stringify(checkoutItem));
-    } else {
-      localStorage.removeItem('tambu_checkout_item');
-    }
-  }, [checkoutItem]);
-
-  useEffect(() => {
-    localStorage.setItem('tambu_admin_mode_active', String(adminModeActive));
-  }, [adminModeActive]);
-
-  useEffect(() => {
-    localStorage.setItem('tambu_trial_ends', trialEndsAt);
-  }, [trialEndsAt]);
-
-  useEffect(() => {
-    localStorage.setItem('tambu_is_subscribed', String(isSubscribed));
-  }, [isSubscribed]);
-
-  useEffect(() => {
-    localStorage.setItem('tambu_subscription_expired', String(isSubscriptionExpired));
-  }, [isSubscriptionExpired]);
-
-  useEffect(() => {
-    localStorage.setItem('tambu_subscription_expiry', subscriptionExpiry);
-  }, [subscriptionExpiry]);
-
-  const handlePaySubscription = () => {
-    const randomRef = 'SUB-' + Math.floor(1000000 + Math.random() * 9000000);
-    setCheckoutItem({
-      name: 'Standard Owner Monthly Subscription',
-      detail: 'Standard Plan Subscription Extension',
-      amount: 100.00,
-      reference: randomRef,
-      type: 'subscription'
-    });
-    navigateTo('checkout', true);
-  };
-
-  const handleToggleSubscriptionExpirySimulated = async () => {
-    const nextState = !isSubscriptionExpired;
-    setIsSubscriptionExpired(nextState);
-    
-    // Simulate by shifting the trial end and subscription expiry dates!
-    if (nextState) {
-      // Set trial and sub expiry to the past (yesterday)
-      const pastDate = new Date();
-      pastDate.setDate(pastDate.getDate() - 1);
-      const pastStr = pastDate.toISOString();
-      
-      setTrialEndsAt(pastStr);
-      setSubscriptionExpiry(pastStr);
-      setIsSubscribed(false);
-      
-      // Update properties on Firestore dynamically so they get hidden for everyone!
-      const ownerProps = properties.filter((p) => p.ownerId === currentUser?.uid);
-      for (const p of ownerProps) {
-        try {
-          await updatePropertyListing(p.id, {
-            ownerIsSubscribed: false,
-            ownerSubscriptionExpiresAt: pastStr,
-            ownerTrialEndsAt: pastStr
-          });
-        } catch (err) {
-          console.warn("Simulated update failed on property document:", err);
-          // Update in local properties state directly as offline fallback
-          setProperties(prev => prev.map(item => item.id === p.id ? {
-            ...item,
-            ownerIsSubscribed: false,
-            ownerSubscriptionExpiresAt: pastStr,
-            ownerTrialEndsAt: pastStr
-          } : item));
-        }
-      }
-      
-      triggerToast('Subscription Simulated as EXPIRED. Owner properties are now HIDDEN from seekers.', 'success');
-    } else {
-      // Set trial to 5 days in the future, or active subscription
-      const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + 5);
-      const futureStr = futureDate.toISOString();
-      
-      setTrialEndsAt(futureStr);
-      setSubscriptionExpiry(futureStr);
-      setIsSubscribed(true);
-      
-      // Update properties on Firestore dynamically so they get activated for everyone!
-      const ownerProps = properties.filter((p) => p.ownerId === currentUser?.uid);
-      for (const p of ownerProps) {
-        try {
-          await updatePropertyListing(p.id, {
-            ownerIsSubscribed: true,
-            ownerSubscriptionExpiresAt: futureStr,
-            ownerTrialEndsAt: futureStr
-          });
-        } catch (err) {
-          console.warn("Simulated update failed on property document:", err);
-          setProperties(prev => prev.map(item => item.id === p.id ? {
-            ...item,
-            ownerIsSubscribed: true,
-            ownerSubscriptionExpiresAt: futureStr,
-            ownerTrialEndsAt: futureStr
-          } : item));
-        }
-      }
-      
-      triggerToast('Subscription Simulated as ACTIVE. Owner properties are now VISIBLE to seekers.', 'success');
-    }
-  };
+  // Add/Edit Property form state (Admin only)
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [newTitle, setNewTitle] = useState('');
+  const [newLocation, setNewLocation] = useState('');
+  const [newProvince, setNewProvince] = useState<Province>(Province.LUSAKA);
+  const [newPrice, setNewPrice] = useState('');
+  const [newType, setNewType] = useState<PropertyType>(PropertyType.APARTMENT);
+  const [newBeds, setNewBeds] = useState('2');
+  const [newBaths, setNewBaths] = useState('2');
+  const [newSqm, setNewSqm] = useState('85');
+  const [newDescription, setNewDescription] = useState('');
   
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [searches, setSearches] = useState<SearchHistory[]>([]);
-  const [billingRecords, setBillingRecords] = useState<BillingRecord[]>([]);
-  const [supportMessages, setSupportMessages] = useState<SupportMessage[]>([]);
+  // Multiple photos state
+  const [newPhotos, setNewPhotos] = useState<string[]>([
+    'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80'
+  ]);
+  const [newMainImageIndex, setNewMainImageIndex] = useState(0);
 
+  const [newPhone, setNewPhone] = useState('+260977123456');
+  const [newWhatsapp, setNewWhatsapp] = useState('+260977123456');
+
+  // Contact Us form state
+  const [contactName, setContactName] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactMessage, setContactMessage] = useState('');
+
+  // Toast
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [momoProvider, setMomoProvider] = useState<'mtn' | 'airtel' | 'card'>('mtn');
-  const [currentFlwRef, setCurrentFlwRef] = useState<string | null>(null);
-  const [currentFlwUrl, setCurrentFlwUrl] = useState<string | null>(null);
 
-  // --- Login/Register local states ---
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [regName, setRegName] = useState('');
-  const [regEmail, setRegEmail] = useState('');
-  const [regPhone, setRegPhone] = useState('');
-  const [regPassword, setRegPassword] = useState('');
-  const [regRole, setRegRole] = useState<UserRole>(UserRole.SEEKER);
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
-  const [simulatedUser, setSimulatedUser] = useState<any>(() => {
-    const cached = localStorage.getItem('tambu_simulated_user');
+  // Sync to localStorage
+  useEffect(() => {
     try {
-      return cached ? JSON.parse(cached) : null;
-    } catch (_) {
-      return null;
-    }
-  });
-  const [authErrorMsg, setAuthErrorMsg] = useState<string>('');
-  const [authTab, setAuthTab] = useState<'google' | 'email-signup' | 'email-login'>('google');
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [showDemoSandbox, setShowDemoSandbox] = useState(false);
-
-  useEffect(() => {
-    if (currentPage === 'register') {
-      setIsRegistering(true);
-    } else if (currentPage === 'login') {
-      setIsRegistering(false);
-    }
-  }, [currentPage]);
-
-  // Synchronized refs to protect onAuthStateChanged from tearing down on high-frequency key inputs and page navigation
-  const regNameRef = React.useRef(regName);
-  const regPhoneRef = React.useRef(regPhone);
-  const regRoleRef = React.useRef(regRole);
-  const userRoleRef = React.useRef(userRole);
-  const savedIdsRef = React.useRef(savedIds);
-
-  useEffect(() => { regNameRef.current = regName; }, [regName]);
-  useEffect(() => { regPhoneRef.current = regPhone; }, [regPhone]);
-  useEffect(() => { regRoleRef.current = regRole; }, [regRole]);
-  useEffect(() => { userRoleRef.current = userRole; }, [userRole]);
-  useEffect(() => { savedIdsRef.current = savedIds; }, [savedIds]);
-
-  const currentUser = auth.currentUser || simulatedUser;
-
-  useEffect(() => {
-    if (simulatedUser) {
-      localStorage.setItem('tambu_simulated_user', JSON.stringify(simulatedUser));
-      localStorage.setItem('tambu_logged_in', 'true');
-      setIsLoggedIn(true);
-    } else {
-      localStorage.removeItem('tambu_simulated_user');
-    }
-  }, [simulatedUser]);
-
-  useEffect(() => {
-    setAuthErrorMsg('');
-  }, [currentPage]);
-
-  // --- Persistent Local-Storage state sync for routing/role ---
-  useEffect(() => {
-    localStorage.setItem('tambu_page', currentPage);
-  }, [currentPage]);
-
-  useEffect(() => {
-    localStorage.setItem('tambu_role', userRole);
-  }, [userRole]);
-
-  // --- Process Flutterwave redirect/callback URL values ---
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const flwStatus = params.get('FLW_STATUS') || params.get('status');
-    const txRef = params.get('tx_ref') || params.get('txRef');
-    const transactionId = params.get('transaction_id') || params.get('transactionId');
-    const isCancelledStatus = flwStatus === 'cancelled' || flwStatus === 'failed' || params.get('cancelled') === 'true';
-    
-    if (flwStatus || isCancelledStatus) {
-      // Clean query parameters from actual URL immediately so refreshes don't re-trigger state
-      const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-      window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
-
-      if ((flwStatus === 'success' || flwStatus === 'successful') && txRef) {
-        // Contact the backend standard status endpoint to securely verify transaction authenticity
-        const verifyPayment = async () => {
-          try {
-            const url = `/api/payments/status?tx_ref=${encodeURIComponent(txRef)}` + 
-                        (transactionId ? `&transaction_id=${encodeURIComponent(transactionId)}` : '');
-            const res = await callBackendApi(url);
-            const data = await res.json();
-            
-            if (data.success && data.status === 'SUCCESSFUL') {
-              triggerToast('Flutterwave Secure Payment Confirmed!', 'success');
-              // Finalize billing logs and premium status renewal
-              handlePaymentComplete();
-            } else {
-              triggerToast('Secure transaction verification failed. Please contact support.', 'error');
-              setCheckoutItem(null);
-              navigateTo('discovery');
-            }
-          } catch (err) {
-            console.error('Payment verification failed:', err);
-            triggerToast('Could not securely verify transaction status.', 'error');
-            setCheckoutItem(null);
-            navigateTo('discovery');
-          }
-        };
-        verifyPayment();
-      } else {
-        triggerToast('Payment was cancelled or experienced an error.', 'error');
-        setCheckoutItem(null);
-        navigateTo('discovery');
-      }
-    }
-  }, []);
-
-  // --- Process Supabase OAuth hash/callback in popup or main window ---
-  useEffect(() => {
-    const isCallback = 
-      window.location.pathname.includes('/auth/callback') || 
-      window.location.hash.includes('access_token=') || 
-      window.location.search.includes('code=') ||
-      window.location.search.includes('error=');
-
-    if (isCallback) {
-      if (window.opener) {
-        // We are inside the popup window launched by the parent!
-        // Notify the parent window that OAuth succeeded or failed
-        try {
-          const params = new URLSearchParams(window.location.search);
-          const errorMsg = params.get('error_description') || params.get('error');
-          if (errorMsg) {
-            window.opener.postMessage({ type: 'TAMBU_AUTH_ERROR', message: errorMsg }, window.location.origin);
-          } else {
-            window.opener.postMessage({ type: 'TAMBU_AUTH_SUCCESS' }, window.location.origin);
-          }
-        } catch (e) {
-          console.error("Failed to notify parent window opener:", e);
-        }
-        // Close the popup window automatically
-        window.close();
-      } else {
-        // This is a direct redirection in the main window (fallback if popup was blocked)
-        triggerToast('Google Sign-In succeeded!', 'success');
-        const cleanUrl = window.location.protocol + "//" + window.location.host + "/";
-        window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
-        setCurrentPage('explore');
-      }
-    }
-  }, []);
-
-  // --- Listen for popup OAuth events ---
-  useEffect(() => {
-    const handleAuthMessage = async (event: MessageEvent) => {
-      const origin = event.origin;
-      // Allow preview domains, run.app, and localhost
-      const isAllowedOrigin = 
-        origin.endsWith('.run.app') || 
-        origin.includes('localhost') || 
-        origin.includes('127.0.0.1') || 
-        origin.includes('aistudio') || 
-        origin.endsWith('.net');
-      if (!isAllowedOrigin) {
-        return;
-      }
-      
-      if (event.data?.type === 'TAMBU_AUTH_SUCCESS') {
-        triggerToast('Welcome back! Google Sign-In succeeded.', 'success');
-        
-        // Force sync parent Supabase client with the new session stored in shared LocalStorage
-        try {
-          const client = getSupabaseClient();
-          if (client) {
-            const { data: { session } } = await client.auth.getSession();
-            if (session) {
-              await client.auth.setSession(session);
-              
-              // Determine final role and redirect
-              const profile = await getUserProfile(session.user.id);
-              let finalRole = UserRole.SEEKER;
-              if (profile) {
-                finalRole = profile.role;
-              } else {
-                finalRole = currentPage === 'register' ? regRole : userRole;
-              }
-              setUserRole(finalRole);
-              navigateTo(finalRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
-            }
-          }
-        } catch (e) {
-          console.error("Failed to sync auth session in parent:", e);
-        }
-      } else if (event.data?.type === 'TAMBU_AUTH_ERROR') {
-        triggerToast(`Google Authentication failed: ${event.data.message || 'Unknown error'}`, 'error');
-      }
-    };
-    
-    window.addEventListener('message', handleAuthMessage);
-    return () => window.removeEventListener('message', handleAuthMessage);
-  }, [currentPage, regRole, userRole]);
-
-  // --- Dynamic Periodic Subscription/Trial Expiry Check ---
-  useEffect(() => {
-    if (!isLoggedIn) {
-      setIsSubscriptionExpired(false);
-      return;
-    }
-
-    const checkExpiration = () => {
-      // If they are subscribed:
-      if (isSubscribed) {
-        if (subscriptionExpiry) {
-          const expiresAt = new Date(subscriptionExpiry);
-          const hasExpired = expiresAt.getTime() <= Date.now();
-          if (hasExpired !== isSubscriptionExpired) {
-            setIsSubscriptionExpired(hasExpired);
-          }
-        } else {
-          setIsSubscriptionExpired(false);
-        }
-      } else {
-        // If not subscribed, they must be on free trial:
-        if (trialEndsAt) {
-          const endsAt = new Date(trialEndsAt);
-          const hasExpired = endsAt.getTime() <= Date.now();
-          if (hasExpired !== isSubscriptionExpired) {
-            setIsSubscriptionExpired(hasExpired);
-          }
-        } else {
-          // If neither, then they are expired by default (or must subscribe to activate)
-          setIsSubscriptionExpired(true);
-        }
-      }
-    };
-
-    checkExpiration();
-    const interval = setInterval(checkExpiration, 1000 * 30); // Check every 30 seconds
-    return () => clearInterval(interval);
-  }, [isLoggedIn, isSubscribed, subscriptionExpiry, trialEndsAt]);
-
-  // --- Check for shared direct property listing ID on mount and when properties load ---
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const propertyIdParam = params.get('propertyId');
-    if (propertyIdParam && properties.length > 0) {
-      const match = properties.find(p => p.id === propertyIdParam);
-      if (match) {
-        setSelectedProperty(match);
-        setCurrentPage('details');
-        
-        // Clean query parameters from actual URL so refreshes don't lock page State
-        const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-        window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
-      }
+      localStorage.setItem('tambu_properties', JSON.stringify(properties));
+    } catch (e) {
+      console.warn('Storage quota exceeded');
     }
   }, [properties]);
 
-  // --- Firebase Realtime Observers and Auth Synchronizations ---
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setSimulatedUser(null);
-        localStorage.removeItem('tambu_simulated_user');
-        setIsLoggedIn(true);
-        localStorage.setItem('tambu_logged_in', 'true');
-        setUserEmail(firebaseUser.email || '');
-        
-        // Fetch/save user profile securely
-        const profile = await getUserProfile(firebaseUser.uid);
-        const isSystemAdminMail = firebaseUser.email?.toLowerCase() === 'admin@tambu.com';
-        
-        if (isSystemAdminMail) {
-          setIsAdmin(true);
-          setAdminModeActive(true);
-          setUserRole(UserRole.OWNER);
-        } else {
-          setIsAdmin(false);
-          setAdminModeActive(false);
-        }
+    try {
+      localStorage.setItem('tambu_saved', JSON.stringify(savedIds));
+    } catch (e) {}
+  }, [savedIds]);
 
-        if (profile) {
-          setUserName(profile.name);
-          setUserPhone(profile.phone);
-          setUserRole(isSystemAdminMail ? UserRole.OWNER : profile.role);
-          setTrialEndsAt(profile.trialEndsAt || '');
-          setIsSubscribed(profile.isSubscribed === true);
-          if (profile.subscriptionExpiresAt) {
-            setSubscriptionExpiry(profile.subscriptionExpiresAt);
-          } else {
-            setSubscriptionExpiry('');
-          }
-          if (profile.isSubscribed) {
-            setIsSubscriptionExpired(false);
-          }
-          if (profile.savedIds && profile.savedIds.length > 0) {
-            setSavedIds(profile.savedIds);
-          }
+  useEffect(() => {
+    try {
+      localStorage.setItem('tambu_logged_in', String(isLoggedIn));
+      localStorage.setItem('tambu_user_email', userEmail);
+      localStorage.setItem('tambu_user_name', userName);
+    } catch (e) {}
+  }, [isLoggedIn, userEmail, userName]);
 
-          // Proactively auto-sync this owner's subscription metadata onto all of their properties
-          const expectedExpiry = profile.subscriptionExpiresAt || '';
-          const expectedSubscribed = profile.isSubscribed === true;
-          const expectedTrial = profile.trialEndsAt || '';
-          
-          try {
-            const cachedProps = localStorage.getItem('tambu_properties');
-            const parsedProps: Property[] = cachedProps ? JSON.parse(cachedProps) : [];
-            const ownerProps = parsedProps.filter(p => p.ownerId === firebaseUser.uid);
-            
-            ownerProps.forEach(async (p) => {
-              if (
-                p.ownerIsSubscribed !== expectedSubscribed ||
-                p.ownerSubscriptionExpiresAt !== expectedExpiry ||
-                p.ownerTrialEndsAt !== expectedTrial
-              ) {
-                try {
-                  await updatePropertyListing(p.id, {
-                    ownerIsSubscribed: expectedSubscribed,
-                    ownerSubscriptionExpiresAt: expectedExpiry,
-                    ownerTrialEndsAt: expectedTrial
-                  });
-                  console.log(`Auto-synchronized subscription metadata for listing ${p.id}`);
-                } catch (err) {
-                  console.warn(`Could not auto-sync listing ${p.id}:`, err);
-                }
-              }
-            });
-          } catch (e) {
-            console.warn("Auto-sync properties check error:", e);
-          }
-        } else {
-          // Initialize user profile document
-          const nameToSet = firebaseUser.displayName || regNameRef.current || firebaseUser.email?.split('@')[0] || 'User';
-          const phoneToSet = regPhoneRef.current || '';
-          const targetRole = isSystemAdminMail ? UserRole.OWNER : (regRoleRef.current || userRoleRef.current || UserRole.SEEKER);
-          
-          const now = new Date();
-          const trialDate = new Date();
-          trialDate.setDate(now.getDate() + 7); // 7-day trial structure
-
-          const newProfile = {
-            userId: firebaseUser.uid,
-            name: nameToSet,
-            email: firebaseUser.email || '',
-            phone: phoneToSet,
-            role: targetRole,
-            savedIds: savedIdsRef.current,
-            createdAt: now.toISOString(),
-            trialEndsAt: trialDate.toISOString(),
-            isSubscribed: false,
-            subscriptionExpiresAt: null
-          };
-          await saveUserProfile(newProfile);
-          setUserName(newProfile.name);
-          setUserPhone(newProfile.phone);
-          setUserRole(targetRole);
-          setTrialEndsAt(newProfile.trialEndsAt);
-          setIsSubscribed(false);
-        }
-
-        // Fetch user subcollection histories
-        try {
-          const loadedSearches = await getSearchHistory(firebaseUser.uid);
-          setSearches(loadedSearches);
-          const loadedBills = await getBillingRecords(firebaseUser.uid);
-          setBillingRecords(loadedBills);
-          setActivities([]);
-        } catch (error) {
-          console.warn("Subcollections load warning:", error);
-        }
-
+  useEffect(() => {
+    try {
+      if (selectedProperty) {
+        localStorage.setItem('tambu_selected_property', JSON.stringify(selectedProperty));
       } else {
-        const cachedSimulated = localStorage.getItem('tambu_simulated_user');
-        if (cachedSimulated) {
-          try {
-            const parsed = JSON.parse(cachedSimulated);
-            setIsLoggedIn(true);
-            setUserName(parsed.displayName || parsed.name || 'User');
-            setUserEmail(parsed.email || '');
-            setUserPhone(parsed.phone || '');
-            
-            const isSystemAdminMail = parsed.email?.toLowerCase() === 'admin@tambu.com';
-            if (isSystemAdminMail) {
-              setIsAdmin(true);
-              setAdminModeActive(true);
-              setUserRole(UserRole.OWNER);
-            } else {
-              const savedRole = localStorage.getItem('tambu_role') as UserRole;
-              if (savedRole) {
-                setUserRole(savedRole);
-              }
-            }
-          } catch (e) {
-            setIsLoggedIn(false);
-          }
-        } else {
-          setIsLoggedIn(false);
-          localStorage.setItem('tambu_logged_in', 'false');
-          setSearches([]);
-          setBillingRecords([]);
-          setActivities([]);
-        }
+        localStorage.removeItem('tambu_selected_property');
       }
-    });
+    } catch (e) {}
+  }, [selectedProperty]);
 
-    return () => unsubscribeAuth();
-  }, []);
-
-  // Real-time property database synchronization conforming strictly to skill onSnapshot pattern
+  // Cross-tab storage sync
   useEffect(() => {
-    let active = true;
-    if (isSupabaseConfigured()) {
-      getPropertiesFromSupabase().then((supProps) => {
-        if (supProps && active) {
-          const localCustom = localStorage.getItem('tambu_local_properties');
-          const parsedLocal: Property[] = localCustom ? JSON.parse(localCustom) : [];
-
-          const cachedProps = localStorage.getItem('tambu_properties');
-          const parsedCached: Property[] = cachedProps ? JSON.parse(cachedProps) : [];
-
-          const merged: Property[] = [];
-          parsedLocal.forEach((localProp) => {
-            if (!merged.some(p => p.id === localProp.id)) {
-              merged.push(localProp);
-            }
-          });
-
-          parsedCached.forEach((cachedProp) => {
-            if (!merged.some(p => p.id === cachedProp.id)) {
-              merged.push(cachedProp);
-            }
-          });
-
-          supProps.forEach((supProp) => {
-            if (!merged.some(p => p.id === supProp.id)) {
-              merged.push(supProp);
-            }
-          });
-
-          // Ensure INITIAL_PROPERTIES are included if not present
-          INITIAL_PROPERTIES.forEach((initProp) => {
-            const index = merged.findIndex((p) => p.id === initProp.id);
-            if (index === -1) {
-              merged.push(initProp);
-            }
-          });
-
-          let filteredMerged = merged;
-          try {
-            const deletedKey = 'tambu_deleted_property_ids';
-            const cachedDeleted = localStorage.getItem(deletedKey);
-            const deletedList = cachedDeleted ? JSON.parse(cachedDeleted) : [];
-            if (Array.isArray(deletedList) && deletedList.length > 0) {
-              filteredMerged = merged.filter(p => !deletedList.includes(p.id));
-            }
-          } catch (e) {}
-
-          if (filteredMerged.length > 0) {
-            setProperties(filteredMerged);
-            try {
-              localStorage.setItem('tambu_properties', JSON.stringify(filteredMerged));
-            } catch (_) {}
-          }
-        }
-      });
-    }
-
-    const pathForOnSnapshot = 'properties';
-    const unsubscribeProperties = onSnapshot(collection(db, pathForOnSnapshot), (snapshot) => {
-      const items: Property[] = [];
-      snapshot.forEach((docSnap) => {
-        const item = { id: docSnap.id, ...docSnap.data() } as Property;
-        items.push(item);
-      });
-
-      // Integrate locally staged custom user-posted properties with highest priority
-      const localCustom = localStorage.getItem('tambu_local_properties');
-      const parsedLocal: Property[] = localCustom ? JSON.parse(localCustom) : [];
-
-      const cachedProps = localStorage.getItem('tambu_properties');
-      const parsedCached: Property[] = cachedProps ? JSON.parse(cachedProps) : [];
-
-      const merged: Property[] = [];
-      parsedLocal.forEach((localProp) => {
-        if (!merged.some(p => p.id === localProp.id)) {
-          merged.push(localProp);
-        }
-      });
-
-      parsedCached.forEach((cachedProp) => {
-        if (!merged.some(p => p.id === cachedProp.id)) {
-          merged.push(cachedProp);
-        }
-      });
-
-      items.forEach((item) => {
-        if (!merged.some(p => p.id === item.id)) {
-          merged.push(item);
-        }
-      });
-
-      // Ensure INITIAL_PROPERTIES are included if not present
-      INITIAL_PROPERTIES.forEach((initProp) => {
-        const index = merged.findIndex((p) => p.id === initProp.id);
-        if (index === -1) {
-          merged.push(initProp);
-        }
-      });
-
-      // Secure double-lock: Filter out any deleted properties
-      let filteredMerged = merged;
-      try {
-        const deletedKey = 'tambu_deleted_property_ids';
-        const cachedDeleted = localStorage.getItem(deletedKey);
-        const deletedList = cachedDeleted ? JSON.parse(cachedDeleted) : [];
-        if (Array.isArray(deletedList) && deletedList.length > 0) {
-          filteredMerged = merged.filter(p => !deletedList.includes(p.id));
-        }
-      } catch (e) {
-        // safe fallback
-      }
-
-      // Update state and local storage representing clean production environment
-      if (filteredMerged.length > 0) {
-        setProperties(filteredMerged);
-        try {
-          localStorage.setItem('tambu_properties', JSON.stringify(filteredMerged));
-        } catch (_) {}
-      }
-    }, (error) => {
-      console.warn("Properties real-time sync failed:", error);
-      const cachedProps = localStorage.getItem('tambu_properties');
-      if (cachedProps) {
-        try {
-          const parsed = JSON.parse(cachedProps);
-          let filteredParsed = parsed;
-          try {
-            const deletedKey = 'tambu_deleted_property_ids';
-            const cachedDeleted = localStorage.getItem(deletedKey);
-            const deletedList = cachedDeleted ? JSON.parse(cachedDeleted) : [];
-            if (Array.isArray(deletedList) && deletedList.length > 0) {
-              filteredParsed = filteredParsed.filter((p: Property) => !deletedList.includes(p.id));
-            }
-          } catch (_) {}
-          setProperties(filteredParsed);
-        } catch (_) {
-          setProperties([]);
-        }
-      } else {
-        setProperties([]);
-      }
-    });
-
-    return () => {
-      active = false;
-      unsubscribeProperties();
-    };
-  }, []);
-
-  // Cross-device/cross-tab storage sync effect for instant PC-mobile synchronization
-  useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'tambu_properties' || e.key === 'tambu_local_properties') {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'tambu_properties') {
         const cached = localStorage.getItem('tambu_properties');
         if (cached) {
           try {
@@ -922,1693 +149,1135 @@ export default function App() {
             if (Array.isArray(parsed) && parsed.length > 0) {
               setProperties(parsed);
             }
-          } catch (_) {}
-        }
-      }
-      if (e.key === 'tambu_selected_property') {
-        const cached = localStorage.getItem('tambu_selected_property');
-        if (cached) {
-          try {
-            const parsed = JSON.parse(cached);
-            if (parsed) {
-              setSelectedProperty(parsed);
-            }
-          } catch (_) {}
+          } catch (err) {}
         }
       }
     };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Real-time Rent payments database synchronization
-  useEffect(() => {
-    if (!isLoggedIn) {
-      setRentPayments([]);
+  const isAdmin = userEmail.toLowerCase() === 'admin@tambu.com';
+
+  // Handlers
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authEmail || !authPassword) {
+      showToast('Please enter both email and password', 'error');
       return;
     }
 
-    const unsubscribePayments = onSnapshot(collection(db, 'rent_payments'), (snapshot) => {
-      const items: RentPayment[] = [];
-      snapshot.forEach((docSnap) => {
-        const item = { id: docSnap.id, ...docSnap.data() } as RentPayment;
-        // Filter based on session user & admin clearances
-        const uid = currentUser?.uid;
-        const belongsToUser = item.ownerId === uid || item.renterId === uid;
-        if (isAdmin || belongsToUser || (uid && uid.startsWith('demo_'))) {
-          items.push(item);
-        }
-      });
-      setRentPayments(items);
-    }, (error) => {
-      console.warn("Rent payments listener error:", error);
-    });
-
-    return () => unsubscribePayments();
-  }, [isLoggedIn, currentUser?.uid, isAdmin]);
-
-  // Real-time Support feedback messages synchronization
-  useEffect(() => {
-    if (!isLoggedIn || !isAdmin) {
-      setSupportMessages([]);
+    if (authEmail.toLowerCase() === 'admin@tambu.com' && authPassword !== 'Admin2026') {
+      showToast('Incorrect master admin password. Use Admin2026', 'error');
       return;
     }
 
-    const unsubscribeSupport = onSnapshot(collection(db, 'support_messages'), (snapshot) => {
-      const items: SupportMessage[] = [];
-      snapshot.forEach((docSnap) => {
-        items.push({ id: docSnap.id, ...docSnap.data() } as SupportMessage);
-      });
-
-      // Integrate locally staged support messages
-      const localCustom = localStorage.getItem('tambu_local_support_messages');
-      const parsedLocal: SupportMessage[] = localCustom ? JSON.parse(localCustom) : [];
-
-      const merged = [...items];
-      parsedLocal.forEach((localMsg) => {
-        if (!merged.some((m) => m.id === localMsg.id)) {
-          merged.push(localMsg);
-        }
-      });
-
-      setSupportMessages(merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-    }, (error) => {
-      console.warn("Support messages listener error or permission restriction, fallback to local cache:", error);
-      const localCustom = localStorage.getItem('tambu_local_support_messages');
-      const parsedLocal: SupportMessage[] = localCustom ? JSON.parse(localCustom) : [];
-      setSupportMessages(parsedLocal.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-    });
-
-    return () => unsubscribeSupport();
-  }, [isLoggedIn, isAdmin]);
-
-  // Real-time Chats database synchronization to compute unread/total chat sessions for user badge
-  useEffect(() => {
-    const currentUid = auth.currentUser?.uid || (localStorage.getItem('tambu_simulated_user') ? 'demo_guest_seeker_1' : '');
-    if (!isLoggedIn || !currentUid) {
-      setChatsCount(0);
-      return;
-    }
-
-    if (currentUid.startsWith('demo_')) {
-      const cached = localStorage.getItem('tambu_chat_sessions');
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          setChatsCount(parsed.length);
-        } catch (_) {
-          setChatsCount(0);
-        }
-      } else {
-        setChatsCount(0);
-      }
-      return;
-    }
-
-    const q = query(
-      collection(db, 'chats'),
-      or(where('seekerId', '==', currentUid), where('ownerId', '==', currentUid))
-    );
-
-    const unsub = onSnapshot(q, (snap) => {
-      setChatsCount(snap.size);
-    }, (err) => {
-      console.warn("Chats count sync failed:", err);
-    });
-
-    return () => {
-      unsub();
-    };
-  }, [isLoggedIn, currentUser?.uid]);
-
-  // --- Navigation engine helper callbacks ---
-  const navigateTo = (page: string, isSubscription: boolean = false) => {
-    const isSysAdmin = isAdmin || 
-                       userEmail?.toLowerCase() === 'admin@tambu.com' || 
-                       currentUser?.email?.toLowerCase() === 'admin@tambu.com' ||
-                       localStorage.getItem('tambu_user_email')?.toLowerCase() === 'admin@tambu.com' ||
-                       localStorage.getItem('tambu_is_admin') === 'true';
-
-    if (page === 'seeker-dashboard' && (isSysAdmin || userRole === UserRole.OWNER)) {
-      page = 'owner-dashboard';
-    }
-
-    if (page === 'owner-dashboard' && !isSysAdmin) {
-      triggerToast('Access denied: Super admin dashboard is restricted to system administrators.', 'error');
-      navigateTo('discovery');
-      return;
-    }
-
-    // Requirements: only signed in or logged in can:
-    // 1. make payments ('checkout' / 'payment-waiting' / 'payment-airtel')
-    // 2. post properties ('add-property' / 'select-photos')
-    // 3. chat ('chat')
-    const loginRequiredPages = ['checkout', 'payment-waiting', 'payment-airtel', 'add-property', 'select-photos', 'chat'];
-    if (loginRequiredPages.includes(page) && !isLoggedIn) {
-      const messages: Record<string, string> = {
-        'checkout': 'Please log in or register to securely reserve and pay for properties.',
-        'payment-waiting': 'Please log in or register to securely reserve and pay for properties.',
-        'payment-airtel': 'Please log in or register to securely reserve and pay for properties.',
-        'add-property': 'Please log in or register to list and post properties on Tambu.',
-        'select-photos': 'Please log in or register to upload property photos.',
-        'chat': 'Please log in or register to start a chat between the owner and tenant.'
-      };
-      const message = messages[page] || 'Please log in or register to access this feature.';
-      triggerToast(message, 'error');
-      setCurrentPage('login');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-
-    if (page === 'add-property' && !isSysAdmin) {
-      triggerToast('Access Denied: Only Super Admin is authorized to list properties on Tambu.', 'error');
-      navigateTo('discovery');
-      return;
-    }
-
-    if (page === 'checkout' && !isSubscription && selectedProperty) {
-      const randomRef = 'RNT-' + Math.floor(1000000 + Math.random() * 9000000);
-      setCheckoutItem({
-        name: `Rent Reservation: ${selectedProperty.name}`,
-        detail: `Reserve & rent this property online. Standard reservation process routing.`,
-        amount: selectedProperty.price, // the monthly rent being paid
-        reference: randomRef,
-        type: 'listing'
-      });
-    }
-    setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleBack = () => {
-    if (currentPage === 'details') {
-      navigateTo('discovery');
-    } else if (currentPage === 'checkout') {
-      navigateTo('details');
-    } else if (['payment-waiting', 'payment-airtel'].includes(currentPage)) {
-      navigateTo('checkout');
-    } else if (currentPage === 'filters') {
-      navigateTo('discovery');
-    } else if (currentPage === 'select-photos') {
-      navigateTo('add-property');
-    } else if (currentPage === 'add-property') {
-      navigateTo(userRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
-    } else {
-      navigateTo('discovery');
-    }
-  };
-
-  // --- Toast Trigger helper ---
-  const triggerToast = (message: string, type: 'success' | 'error' = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => {
-      setToast(null);
-    }, 4000);
-  };
-
-  // --- Favorites handler ---
-  const handleToggleSaved = async (id: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    
-    let updatedList: string[];
-    if (savedIds.includes(id)) {
-      updatedList = savedIds.filter((item) => item !== id);
-      triggerToast('Removed from saved list', 'success');
-    } else {
-      updatedList = [...savedIds, id];
-      triggerToast('Saved to your favorites!', 'success');
-    }
-    setSavedIds(updatedList);
-
-    if (currentUser) {
-      try {
-        await updateSavedProperties(currentUser.uid, updatedList);
-      } catch (err) {
-        console.warn('Could not sync favorites to Firestore:', err);
-      }
-    }
-  };
-
-  // --- Filters Apply Callback ---
-  const handleApplyFilters = async (
-    query: string, 
-    prov: Province | '', 
-    min: number, 
-    max: number, 
-    types: PropertyType[]
-  ) => {
-    setSearchQuery(query);
-    setSelectedProvince(prov);
-    setMinPrice(min);
-    setMaxPrice(max);
-    setSelectedPropertyTypes(types);
-    
-    if (query.trim()) {
-      const newSearch: SearchHistory = { id: Date.now().toString(), query };
-      setSearches((prev) => [newSearch, ...prev.slice(0, 4)]);
-      
-      if (currentUser) {
-        try {
-          await addSearchHistory(currentUser.uid, newSearch);
-        } catch (err) {
-          console.warn("Could not sync search history to Firestore:", err);
-        }
-      }
-    }
-
-    triggerToast('Filters applied successfully', 'success');
-    navigateTo('discovery');
-  };
-
-  // --- Selection and Details handles ---
-  const handleSelectProperty = (property: Property) => {
-    setSelectedProperty(property);
-    try {
-      localStorage.setItem('tambu_selected_property', JSON.stringify(property));
-    } catch (e) {}
-    navigateTo('details');
-  };
-
-  // --- Authentication Submit operations (Production Firebase Auth integration) ---
-  const handleDemoLogin = (role: UserRole) => {
-    const demoProfile = {
-      uid: 'demo_' + (role === UserRole.OWNER ? 'owner123' : 'seeker123'),
-      email: role === UserRole.OWNER ? 'demo-owner@tambu.co.zm' : 'demo-seeker@tambu.co.zm',
-      displayName: role === UserRole.OWNER ? 'Mwamba Chileshe (Demo Owner)' : 'Bwalya Mulenga (Demo Seeker)',
-      photoURL: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0',
-    };
-
-    setSimulatedUser(demoProfile);
     setIsLoggedIn(true);
-    setUserName(demoProfile.displayName);
-    setUserEmail(demoProfile.email);
-    setUserPhone(role === UserRole.OWNER ? '0977223344' : '0966554433');
-    setUserRole(role);
-    
-    // Default demo owner to a fully working 5 days remaining trial
-    if (role === UserRole.OWNER) {
-      const testTrialDate = new Date();
-      testTrialDate.setDate(testTrialDate.getDate() + 5);
-      setTrialEndsAt(testTrialDate.toISOString());
-      setIsSubscribed(false);
-      setSubscriptionExpiry('');
-      setIsSubscriptionExpired(false);
-    } else {
-      setTrialEndsAt('');
-      setIsSubscribed(false);
-      setSubscriptionExpiry('');
-      setIsSubscriptionExpired(false);
-    }
-
-    triggerToast(`Logged in successfully under demo mode!`, 'success');
-    navigateTo(role === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
+    setUserEmail(authEmail);
+    setUserName(authEmail.toLowerCase() === 'admin@tambu.com' ? 'System Master Admin' : (authName || authEmail.split('@')[0]));
+    showToast('Successfully logged in!');
+    setCurrentPage(authEmail.toLowerCase() === 'admin@tambu.com' ? 'admin-dashboard' : 'discovery');
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      setAuthErrorMsg('');
-      const authData = await loginWithGoogle();
-      
-      // If it returned a direct user object (e.g. from Firebase Auth Popup or mock fallback)
-      if (authData && (authData as any).user) {
-        const u = (authData as any).user;
-        triggerToast('Welcome back! Google Sign-In succeeded.', 'success');
-        
-        const profile = await getUserProfile(u.uid);
-        let finalRole = UserRole.SEEKER;
-        if (profile) {
-          finalRole = profile.role;
-        } else {
-          finalRole = currentPage === 'register' ? regRole : userRole;
-        }
-        setUserRole(finalRole);
-        navigateTo(finalRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
-        return;
-      }
-
-      // If it returned a Supabase OAuth URL to open
-      if (authData && (authData as any).url) {
-        // Open the popup window in the center of the screen
-        const width = 600;
-        const height = 700;
-        const left = window.screen.width / 2 - width / 2;
-        const top = window.screen.height / 2 - height / 2;
-        
-        const popup = window.open(
-          (authData as any).url,
-          'tambu_google_auth',
-          `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes`
-        );
-        
-        if (!popup) {
-          triggerToast('Popup blocked! Please allow popups for this site to sign in with Google.', 'error');
-        } else {
-          triggerToast('Opening secure Google Sign-In...', 'success');
-          
-          // Set a monitoring interval to detect when the popup is closed by the user
-          const monitor = setInterval(() => {
-            if (popup.closed) {
-              clearInterval(monitor);
-              
-              // Wait a moment for any message handlers to finish processing
-              setTimeout(() => {
-                const isLoggedInNow = localStorage.getItem('tambu_logged_in') === 'true';
-                if (!isLoggedInNow) {
-                  setAuthErrorMsg("Google Sign-In failed or was closed. Please ensure the Google provider is enabled and configured in your Supabase project under Authentication -> Providers.");
-                }
-              }, 1200);
-            }
-          }, 1000);
-        }
-      } else {
-        throw new Error('Could not retrieve Google sign-in configuration.');
-      }
-    } catch (err: any) {
-      console.error(err);
-      triggerToast('Google authentication cancelled or failed', 'error');
-      const errMsg = err.message || String(err);
-      if (errMsg.includes('unauthorized-domain') || errMsg.includes('auth/unauthorized-domain') || err.code === 'auth/unauthorized-domain') {
-        setAuthErrorMsg("This domain is not authorized for Google OAuth operations in your Firebase project. You must add this domain to the Authorized Domains list in your Firebase console inside Authentication -> Settings!");
-      } else {
-        setAuthErrorMsg(`Google Authentication Error: ${errMsg}`);
-      }
-    }
-  };
-
-  const handleLoginSubmit = async (e: React.FormEvent) => {
+  const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loginEmail || !loginPassword) return;
+    if (!authEmail || !authPassword || !authName) {
+      showToast('Please fill in all registration fields', 'error');
+      return;
+    }
+    setIsLoggedIn(true);
+    setUserEmail(authEmail);
+    setUserName(authName);
+    showToast('Account created successfully!');
+    setCurrentPage('discovery');
+  };
 
-    // Try standard Firebase Authentication first to resolve actual global sessions
-    try {
-      let credential;
-      try {
-        credential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
-      } catch (err: any) {
-        // If the user entered the correct master admin credentials but they don't exist yet in the Firebase project,
-        // create the user dynamically so their session is properly authenticated on Firestore!
-        if (loginEmail.toLowerCase() === 'admin@tambu.com' && loginPassword === 'Admin2026') {
-          console.info("Master Admin account not found in Firebase database. Provisioning admin@tambu.com credentials dynamically...");
-          try {
-            credential = await createUserWithEmailAndPassword(auth, 'admin@tambu.com', 'Admin2026');
-          } catch (createErr: any) {
-            console.error("Could not dynamically provision master admin auth credentials:", createErr);
-            throw err;
-          }
-        } else {
-          throw err;
-        }
-      }
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setUserEmail('');
+    setUserName('Guest User');
+    showToast('Logged out successfully');
+    setCurrentPage('discovery');
+  };
 
-      triggerToast('Logged in successfully!', 'success');
-      setIsLoggedIn(true);
-      localStorage.setItem('tambu_logged_in', 'true');
+  const toggleSave = (propertyId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (savedIds.includes(propertyId)) {
+      setSavedIds(savedIds.filter(id => id !== propertyId));
+      showToast('Removed from saved properties');
+    } else {
+      setSavedIds([...savedIds, propertyId]);
+      showToast('Saved to your favorites!');
+    }
+  };
+
+  // Multiple Image Upload handler
+  const handleMultipleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const newUrls: string[] = [];
+      let processed = 0;
       
-      let finalRole: UserRole = UserRole.SEEKER;
-      const isSystemAdminMail = credential.user.email?.toLowerCase() === 'admin@tambu.com';
-      if (isSystemAdminMail) {
-        setIsAdmin(true);
-        setAdminModeActive(true);
-        setUserEmail('admin@tambu.com');
-        localStorage.setItem('tambu_is_admin', 'true');
-        localStorage.setItem('tambu_user_email', 'admin@tambu.com');
-        finalRole = UserRole.OWNER;
-      } else {
-        setIsAdmin(false);
-        setAdminModeActive(false);
-        const profile = await getUserProfile(credential.user.uid);
-        if (profile) {
-          finalRole = profile.role;
-          setTrialEndsAt(profile.trialEndsAt || '');
-          setIsSubscribed(profile.isSubscribed === true);
-        } else {
-          finalRole = userRole;
-        }
-      }
-      
-      setUserRole(finalRole);
-      setLoginEmail('');
-      setLoginPassword('');
-      navigateTo(finalRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
-    } catch (err: any) {
-      console.warn("Real authentication failed or is not initialized yet in console. Checking simulated offline fallback:", err);
-
-      // If Supabase is configured and we got an authentication error, display it explicitly
-      if (isSupabaseConfigured()) {
-        const errorMsg = err.message || err.description || String(err);
-        setAuthErrorMsg(`Supabase Authentication failed: ${errorMsg}`);
-        triggerToast(`Login failed: ${errorMsg}`, 'error');
-        return;
-      }
-
-      // Conformance credentials requirement for simulated admin fallback 
-      if (loginEmail.toLowerCase() === 'admin@tambu.com' && loginPassword === 'Admin2026') {
-        setIsAdmin(true);
-        setAdminModeActive(true);
-        setIsLoggedIn(true);
-        setUserName('Tambu Administrator');
-        setUserEmail('admin@tambu.com');
-        setUserPhone('+260 977 112233');
-        setUserRole(UserRole.OWNER); // Uses the same dashboards layout
-        localStorage.setItem('tambu_is_admin', 'true');
-        localStorage.setItem('tambu_user_email', 'admin@tambu.com');
-
-        const adminProfile = {
-          uid: 'admin_tambu',
-          email: 'admin@tambu.com',
-          displayName: 'Tambu System Administrator',
-        };
-        setSimulatedUser(adminProfile);
-        setLoginEmail('');
-        setLoginPassword('');
-        triggerToast('Logged in successfully as System Administrator!', 'success');
-        navigateTo('owner-dashboard');
-        return;
-      }
-
-      // Scan localStorage for any matching cached sandbox profiles
-      try {
-        let foundProfile = null;
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('tambu_profile_fallback_')) {
-            const valStr = localStorage.getItem(key);
-            if (valStr) {
-              const val = JSON.parse(valStr);
-              if (val && val.email?.toLowerCase() === loginEmail.toLowerCase()) {
-                foundProfile = val;
-                break;
-              }
+      Array.from(files as unknown as File[]).forEach((file: File) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            const maxDim = 1000;
+            if (width > height && width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
             }
-          }
-        }
-
-        if (foundProfile) {
-          const simulatedUserObj = {
-            uid: foundProfile.userId,
-            email: foundProfile.email,
-            displayName: foundProfile.name,
-            photoURL: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0'
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              try {
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                newUrls.push(dataUrl);
+              } catch (err) {
+                if (event.target?.result) newUrls.push(event.target.result as string);
+              }
+            } else {
+              if (event.target?.result) newUrls.push(event.target.result as string);
+            }
+            processed++;
+            if (processed === files.length) {
+              setNewPhotos(prev => [...prev, ...newUrls]);
+              showToast(`Successfully added ${newUrls.length} picture(s)!`);
+            }
           };
-          setSimulatedUser(simulatedUserObj);
-          setIsLoggedIn(true);
-          setUserName(foundProfile.name);
-          setUserEmail(foundProfile.email);
-          setUserPhone(foundProfile.phone || '0977223344');
-          setUserRole(foundProfile.role);
-          setTrialEndsAt(foundProfile.trialEndsAt || '');
-          setIsSubscribed(foundProfile.isSubscribed === true);
-          setLoginEmail('');
-          setLoginPassword('');
-          triggerToast(`Welcome back, ${foundProfile.name}! Logged in successfully.`, 'success');
-          navigateTo(foundProfile.role === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
-          return;
-        }
-      } catch (e) {
-        console.error("Error scanning local sandbox profiles:", e);
-      }
-
-      // Default sandbox login fallback for unconfigured environments
-      console.log("No matching cached profile. Dynamically generating sandbox profile...");
-      const userPart = loginEmail.split('@')[0];
-      const prettyName = userPart.charAt(0).toUpperCase() + userPart.slice(1);
-      const simulatedUid = 'sandbox_' + Math.random().toString(36).substring(2, 11);
-      
-      const newProfile = {
-        userId: simulatedUid,
-        name: prettyName,
-        email: loginEmail,
-        phone: '0977223344',
-        role: userRole, // Uses the current UI selected role preference
-        savedIds: [],
-        createdAt: new Date().toISOString(),
-        trialEndsAt: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
-        isSubscribed: false,
-        subscriptionExpiresAt: null
-      };
-
-      try {
-        localStorage.setItem(`tambu_profile_fallback_${simulatedUid}`, JSON.stringify(newProfile));
-      } catch (e) {
-        console.error("Local storage fallback write failed:", e);
-      }
-
-      const simulatedUserObj = {
-        uid: simulatedUid,
-        email: loginEmail,
-        displayName: prettyName,
-        photoURL: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0'
-      };
-
-      setSimulatedUser(simulatedUserObj);
-      setIsLoggedIn(true);
-      setUserName(prettyName);
-      setUserEmail(loginEmail);
-      setUserPhone('0977223344');
-      setTrialEndsAt(newProfile.trialEndsAt);
-      setIsSubscribed(false);
-      setLoginEmail('');
-      setLoginPassword('');
-      
-      triggerToast('Auth service offline. Activated Sandbox Account!', 'success');
-      navigateTo(userRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
-    }
-  };
-
-  const handleRegisterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!regEmail || !regName || !regPhone || !regPassword) return;
-
-    const isSystemAdminMail = regEmail.toLowerCase() === 'admin@tambu.com';
-    const finalRole = isSystemAdminMail ? UserRole.OWNER : UserRole.SEEKER;
-
-    try {
-      const credential = await createUserWithEmailAndPassword(auth, regEmail, regPassword);
-      
-      const now = new Date();
-      const trialDate = new Date();
-      trialDate.setDate(now.getDate() + 7);
-
-      const newProfile = {
-        userId: credential.user.uid,
-        name: regName,
-        email: regEmail,
-        phone: regPhone,
-        role: finalRole,
-        savedIds: [],
-        createdAt: now.toISOString(),
-        trialEndsAt: trialDate.toISOString(),
-        isSubscribed: false,
-        subscriptionExpiresAt: null
-      };
-      await saveUserProfile(newProfile);
-      
-      setTrialEndsAt(newProfile.trialEndsAt);
-      setIsSubscribed(false);
-      setUserRole(finalRole);
-      setIsAdmin(isSystemAdminMail);
-      setRegEmail('');
-      setRegName('');
-      setRegPhone('');
-      setRegPassword('');
-      triggerToast('Account created successfully!', 'success');
-      navigateTo(finalRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
-    } catch (err: any) {
-      console.warn("Real database registration failed. Activating local Sandbox fallback:", err);
-      
-      if (isSupabaseConfigured()) {
-        const errorMsg = err.message || err.description || String(err);
-        setAuthErrorMsg(`Supabase Registration failed: ${errorMsg}`);
-        triggerToast(`Registration failed: ${errorMsg}`, 'error');
-        return;
-      }
-
-      const now = new Date();
-      const trialDate = new Date();
-      trialDate.setDate(now.getDate() + 7);
-      
-      const simulatedUid = 'sandbox_' + Math.random().toString(36).substring(2, 11);
-      const newProfile = {
-        userId: simulatedUid,
-        name: regName,
-        email: regEmail,
-        phone: regPhone,
-        role: finalRole,
-        savedIds: [],
-        createdAt: now.toISOString(),
-        trialEndsAt: trialDate.toISOString(),
-        isSubscribed: false,
-        subscriptionExpiresAt: null
-      };
-
-      try {
-        localStorage.setItem(`tambu_profile_fallback_${simulatedUid}`, JSON.stringify(newProfile));
-      } catch (e) {}
-
-      const simulatedUserObj = {
-        uid: simulatedUid,
-        email: regEmail,
-        displayName: regName,
-        photoURL: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0'
-      };
-
-      setSimulatedUser(simulatedUserObj);
-      setIsLoggedIn(true);
-      setUserName(regName);
-      setUserEmail(regEmail);
-      setUserPhone(regPhone);
-      setUserRole(finalRole);
-      setIsAdmin(isSystemAdminMail);
-      setTrialEndsAt(newProfile.trialEndsAt);
-      setIsSubscribed(false);
-      
-      setRegEmail('');
-      setRegName('');
-      setRegPhone('');
-      setRegPassword('');
-      
-      triggerToast('Auth service offline. Activated local Sandbox Account!', 'success');
-      navigateTo(finalRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      if (auth.currentUser) {
-        await logoutUser();
-      }
-      setSimulatedUser(null);
-      setIsLoggedIn(false);
-      setUserName('');
-      setUserEmail('');
-      setUserPhone('');
-      setUserRole(UserRole.SEEKER);
-      setIsAdmin(false);
-      setAdminModeActive(false);
-      setTrialEndsAt('');
-      setIsSubscribed(false);
-      setRentPayments([]);
-      setSearches([]);
-      setBillingRecords([]);
-      setActivities([]);
-      localStorage.removeItem('tambu_simulated_user');
-      localStorage.removeItem('tambu_user_name');
-      localStorage.removeItem('tambu_user_email');
-      localStorage.removeItem('tambu_user_phone');
-      localStorage.removeItem('tambu_role');
-      localStorage.setItem('tambu_is_admin', 'false');
-      localStorage.setItem('tambu_admin_mode_active', 'false');
-      localStorage.setItem('tambu_trial_ends', '');
-      localStorage.setItem('tambu_is_subscribed', 'false');
-      localStorage.setItem('tambu_logged_in', 'false');
-      triggerToast('Logged out of system', 'success');
-      navigateTo('discovery');
-    } catch (err: any) {
-      triggerToast('Sign-out verification failed', 'error');
-    }
-  };
-
-  const handleSwitchRole = async (targetRole: UserRole) => {
-    setUserRole(targetRole);
-    localStorage.setItem('tambu_role', targetRole);
-    if (auth.currentUser) {
-      try {
-        const profile = await getUserProfile(auth.currentUser.uid);
-        if (profile) {
-          profile.role = targetRole;
-          await saveUserProfile(profile);
-        }
-      } catch (e) {
-        console.warn("Failed to update profile role in backend:", e);
-      }
-    }
-    navigateTo(targetRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
-    triggerToast(`Switched to ${targetRole === UserRole.OWNER ? 'Lister (Owner)' : 'Seeker'} mode`, 'success');
-  };
-
-  // --- Property creation by owners ---
-  const handlePublishListing = async (input: NewListingInput) => {
-    if (!currentUser) {
-      triggerToast('Please sign in to list properties', 'error');
-      navigateTo('login');
-      return;
-    }
-
-    const canPublish = isAdmin || userRole === UserRole.OWNER || isLoggedIn || currentUser;
-    if (!canPublish) {
-      triggerToast('Please sign in as a property owner or admin to publish listings.', 'error');
-      navigateTo('login');
-      return;
-    }
-
-    const safeToISOString = (dateStr: any): string | undefined => {
-      if (!dateStr) return undefined;
-      try {
-        const d = new Date(dateStr);
-        if (isNaN(d.getTime())) return undefined;
-        return d.toISOString();
-      } catch (e) {
-        return undefined;
-      }
-    };
-
-    const propId = 'prop_' + Date.now();
-    const rawRecord: Property = {
-      id: propId,
-      name: input.name,
-      location: input.location,
-      price: Number(input.price),
-      type: input.type,
-      beds: Number(input.beds),
-      baths: Number(input.baths),
-      image: input.photos[0] || '',
-      verified: false, // matches security rule
-      featured: false, // matches security rule
-      rating: 0,
-      saves: 0,
-      views: 0,
-      province: input.province,
-      ownerId: currentUser.uid,
-      ownerName: userName,
-      ownerImage: currentUser.photoURL || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0',
-      ownerPhone: input.phone,
-      ownerWhatsapp: input.whatsapp,
-      available: true,
-      propertyOfTheWeek: !!input.propertyOfTheWeek,
-      description: input.description,
-      distance: input.distance,
-      photos: input.photos,
-      amenities: input.amenities,
-      ownerTrialEndsAt: safeToISOString(trialEndsAt),
-      ownerIsSubscribed: isSubscribed,
-      ownerSubscriptionExpiresAt: safeToISOString(subscriptionExpiry),
-    };
-
-    // Remove any undefined properties flatly to prevent firestore setDoc errors
-    const cleanedRecord = {} as Property;
-    Object.keys(rawRecord).forEach(key => {
-      const val = (rawRecord as any)[key];
-      if (val !== undefined && val !== null) {
-        (cleanedRecord as any)[key] = val;
-      }
-    });
-
-    // Supabase Integration Coexistence
-    let finalRecord = { ...cleanedRecord };
-    const supabaseActive = isSupabaseConfigured();
-    if (supabaseActive) {
-      try {
-        console.log('Publishing listing details & photos to Supabase storage bucket & table...');
-        const savedData = await savePropertyToSupabase(cleanedRecord);
-        if (savedData && savedData[0]) {
-          const supRecord = savedData[0];
-          if (supRecord.image) {
-            finalRecord.image = supRecord.image;
-          }
-          if (Array.isArray(supRecord.photos)) {
-            finalRecord.photos = supRecord.photos;
-          }
-        }
-        console.log('Successfully saved listing in Supabase database!');
-      } catch (supabaseError: any) {
-        console.error('Supabase publishing failed:', supabaseError);
-        triggerToast('Supabase Publish Failed: ' + (supabaseError.message || 'Error occurred.'), 'error');
-        // Do not throw or block the main application's flow, fall back to default
-      }
-    }
-
-    try {
-      await createPropertyListing(finalRecord);
-      setSelectedPhotos([]); // Clear choice pool
-
-      // Instantly update properties state and cache so it shows in the dashboard and home screen without delay
-      setProperties(prev => {
-        const index = prev.findIndex(p => p.id === finalRecord.id);
-        if (index === -1) {
-          const updated = [finalRecord, ...prev];
-          try {
-            localStorage.setItem('tambu_properties', JSON.stringify(updated));
-          } catch (storageErr) {
-            console.warn('LocalStorage quota exceeded during property publish, trimming photos:', storageErr);
-            try {
-              const trimmed = updated.slice(0, 15);
-              localStorage.setItem('tambu_properties', JSON.stringify(trimmed));
-            } catch (e2) {
-              localStorage.removeItem('tambu_properties');
-            }
-          }
-          return updated;
-        }
-        return prev;
+          img.src = event.target?.result as string;
+        };
+        reader.readAsDataURL(file);
       });
+    }
+  };
 
-      const billId = 'inv_' + Date.now();
-      const newInvoice: BillingRecord = {
-        id: billId,
-        reference: 'FLW-' + Math.floor(1000000 + Math.random() * 9000000),
-        amount: 100.00,
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        status: 'SUCCESSFUL'
-      };
-      await addBillingRecord(currentUser.uid, newInvoice);
+  const removePhoto = (index: number) => {
+    if (newPhotos.length <= 1) {
+      showToast('A property must have at least one photo', 'error');
+      return;
+    }
+    const updated = newPhotos.filter((_, idx) => idx !== index);
+    setNewPhotos(updated);
+    if (newMainImageIndex >= updated.length) {
+      setNewMainImageIndex(0);
+    }
+  };
 
-      if (supabaseActive) {
-        triggerToast('Property successfully listed on Tambu & Supabase!', 'success');
-      } else {
-        triggerToast('Property successfully listed & activated on tambu!', 'success');
-      }
-      navigateTo('owner-dashboard');
-    } catch (err: any) {
-      console.error("Listing publish error:", err);
-      let errMsg = 'Schema rules prevented publishing listing.';
-      try {
-        if (err && err.message) {
-          const parsed = JSON.parse(err.message);
-          if (parsed && parsed.error) {
-            errMsg = `Schema/Permission Rule Denied: ${parsed.error} (${parsed.path || ''})`;
-          } else {
-            errMsg = err.message;
-          }
+  const handleSaveProperty = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) {
+      showToast('Only the master administrator can list properties.', 'error');
+      return;
+    }
+    if (!newTitle || !newLocation || !newPrice || !newDescription) {
+      showToast('Please fill in all required property details.', 'error');
+      return;
+    }
+
+    const mainImg = newPhotos[newMainImageIndex] || newPhotos[0];
+
+    if (editingId) {
+      const updated = properties.map(p => {
+        if (p.id === editingId) {
+          return {
+            ...p,
+            name: newTitle,
+            location: newLocation,
+            province: newProvince,
+            price: Number(newPrice),
+            type: newType,
+            beds: Number(newBeds),
+            baths: Number(newBaths),
+            sqm: Number(newSqm) || 75,
+            image: mainImg,
+            photos: newPhotos,
+            phone: newPhone,
+            whatsapp: newWhatsapp,
+            description: newDescription
+          };
         }
-      } catch (e) {
-        if (err && err.message) {
-          errMsg = err.message;
-        } else if (typeof err === 'string') {
-          errMsg = err;
-        }
-      }
-      triggerToast(`Error: ${errMsg}`, 'error');
-    }
-  };
-
-  const handleTogglePropertyAvailability = async (id: string, currentAvailable: boolean) => {
-    const targetAvailable = !currentAvailable;
-    // Update local list first for instant snappiness
-    setProperties(prev => prev.map(p => p.id === id ? { ...p, available: targetAvailable } : p));
-    
-    try {
-      if (!id.startsWith('demo_')) {
-        await updatePropertyListing(id, { available: targetAvailable });
-      }
-      triggerToast(targetAvailable ? 'Property marked as AVAILABLE to rent!' : 'Property marked as OCCUPIED / UNAVAILABLE.', 'success');
-    } catch (err: any) {
-      console.error(err);
-      triggerToast('Could not update property availability.', 'error');
-    }
-  };
-
-  const handleTogglePropertySpotlight = async (id: string, currentSpotlight: boolean) => {
-    const targetSpotlight = !currentSpotlight;
-    
-    // Update state to set the selected property's spotlight and unset other spotlights to keep it singular.
-    setProperties(prev => prev.map(p => {
-      if (p.id === id) {
-        return { ...p, propertyOfTheWeek: targetSpotlight };
-      } else if (targetSpotlight) {
-        return { ...p, propertyOfTheWeek: false };
-      }
-      return p;
-    }));
-
-    try {
-      if (targetSpotlight) {
-        const othersToUnset = properties.filter(p => p.propertyOfTheWeek && p.id !== id);
-        for (const p of othersToUnset) {
-          if (!p.id.startsWith('demo_')) {
-            await updatePropertyListing(p.id, { propertyOfTheWeek: false });
-          }
-        }
-      }
-
-      if (!id.startsWith('demo_')) {
-        await updatePropertyListing(id, { propertyOfTheWeek: targetSpotlight });
-      }
-
-      triggerToast(targetSpotlight ? 'Selected as the spotlight "Property of the Week"!' : 'Removed from "Property of the Week" spotlight.', 'success');
-    } catch (err: any) {
-      console.error(err);
-      triggerToast('Could not update property spotlight status.', 'error');
-    }
-  };
-
-  const handleTogglePropertyVerified = async (id: string, currentVerified: boolean) => {
-    const targetVerified = !currentVerified;
-    // Update local list first for instant snappiness
-    setProperties(prev => prev.map(p => p.id === id ? { ...p, verified: targetVerified } : p));
-    
-    try {
-      if (!id.startsWith('demo_')) {
-        await updatePropertyListing(id, { verified: targetVerified });
-      }
-      triggerToast(targetVerified ? 'Property marked as VERIFIED!' : 'Property verification removed.', 'success');
-    } catch (err: any) {
-      console.error(err);
-      triggerToast('Could not update property verification.', 'error');
-    }
-  };
-
-  const handleDeleteProperty = async (id: string) => {
-    try {
-      await deletePropertyListing(id);
-      setProperties(properties.filter((p) => p.id !== id));
-      triggerToast('Listing removed successfully', 'success');
-    } catch (err: any) {
-      console.error(err);
-      triggerToast('Could not delete listing', 'error');
-    }
-  };
-
-  // --- Manual mobile money payment confirmation handler ---
-  const handleConfirmManualPayment = async (reference: string, phone: string) => {
-    setUserPhone(phone);
-    if (!checkoutItem) return;
-
-    if (checkoutItem.type === 'subscription') {
-      const billId = 'sub_' + Date.now();
-      const newInvoice: BillingRecord = {
-        id: billId,
-        reference: reference,
-        amount: checkoutItem.amount,
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        status: 'SUCCESSFUL'
-      };
-      
-      if (currentUser) {
-        try {
-          await addBillingRecord(currentUser.uid, newInvoice);
-          const profile = await getUserProfile(currentUser.uid);
-          if (profile) {
-            const date = new Date();
-            date.setDate(date.getDate() + 30);
-            const expiryString = date.toISOString();
-            const updatedProfile = {
-              ...profile,
-              isSubscribed: true,
-              subscriptionExpiresAt: expiryString
-            };
-            await saveUserProfile(updatedProfile);
-
-            const ownerProps = properties.filter((p) => p.ownerId === currentUser.uid);
-            for (const p of ownerProps) {
-              try {
-                await updatePropertyListing(p.id, {
-                  ownerIsSubscribed: true,
-                  ownerSubscriptionExpiresAt: expiryString
-                });
-              } catch (subErr) {
-                console.warn(`Could not update subscription expiry fields on property ${p.id}:`, subErr);
-              }
-            }
-          }
-        } catch (err) {
-          console.warn('Could not persist manual subscription record in Firestore:', err);
-        }
-      }
-      
-      setBillingRecords(prev => [newInvoice, ...prev]);
-      setIsSubscribed(true);
-      const date = new Date();
-      date.setDate(date.getDate() + 30);
-      const expiryStr = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-      setSubscriptionExpiry(expiryStr);
-      setIsSubscriptionExpired(false);
-      setCheckoutItem(null);
-      
-      triggerToast('Manual payment submitted for K100! Super Admin will verify transfer to 0974661185 (Japhet Ndafi).', 'success');
-      navigateTo('owner-dashboard');
-    } else if (checkoutItem.type === 'listing' && selectedProperty) {
-      const paymentId = 'pay_' + Date.now();
-      const rentPaymentRecord: RentPayment = {
-        id: paymentId,
-        reference: reference,
-        propertyId: selectedProperty.id,
-        propertyName: selectedProperty.name,
-        propertyLocation: selectedProperty.location,
-        renterId: currentUser ? currentUser.uid : 'seeker_anonymous',
-        renterName: userName || 'Seeker Guest',
-        renterEmail: userEmail || '',
-        renterPhone: phone || '',
-        ownerId: selectedProperty.ownerId || 'unknown_owner',
-        ownerName: selectedProperty.ownerName || 'Property Owner',
-        amount: checkoutItem.amount,
-        status: 'SUCCESSFUL',
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        createdAt: new Date().toISOString()
-      };
-
-      try {
-        await addRentPayment(rentPaymentRecord);
-        triggerToast(`Manual rent payment record submitted for ZMW ${checkoutItem.amount}!`, 'success');
-      } catch (err) {
-        console.warn('Could not persist rent payment in Firestore:', err);
-        triggerToast(`Manual rent payment recorded successfully!`, 'success');
-      }
-
-      setRentPayments(prev => [rentPaymentRecord, ...prev]);
-      setCheckoutItem(null);
-      navigateTo('seeker-dashboard');
+        return p;
+      });
+      setProperties(updated);
+      showToast('Property updated successfully!');
+      setEditingId(null);
     } else {
-      triggerToast('Manual payment transaction successfully documented', 'success');
-      navigateTo(userRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
+      const created: Property = {
+        id: 'prop_' + Date.now(),
+        name: newTitle,
+        location: newLocation,
+        province: newProvince,
+        price: Number(newPrice),
+        type: newType,
+        beds: Number(newBeds),
+        baths: Number(newBaths),
+        sqm: Number(newSqm) || 75,
+        image: mainImg,
+        photos: newPhotos,
+        verified: true,
+        featured: true,
+        rating: 5.0,
+        reviewsCount: 1,
+        ownerName: 'Tambu Master Admin',
+        ownerPhone: newPhone || '+260977123456',
+        ownerWhatsapp: newWhatsapp || '+260977123456',
+        description: newDescription,
+        distance: 'Prime secure location in ' + newLocation,
+        amenities: ['Continuous Electricity Backup', 'Borehole Water', 'Secured Perimeter Wall', 'Air Conditioning', 'Modern Kitchen']
+      };
+
+      const updatedList = [created, ...properties];
+      setProperties(updatedList);
+      showToast('Property listed successfully with multiple photos!');
+    }
+
+    // Reset form
+    setNewTitle('');
+    setNewLocation('');
+    setNewPrice('');
+    setNewDescription('');
+    setNewPhotos([
+      'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80'
+    ]);
+    setNewMainImageIndex(0);
+    setCurrentPage('admin-dashboard');
+  };
+
+  const handleStartEdit = (p: Property) => {
+    setEditingId(p.id);
+    setNewTitle(p.name);
+    setNewLocation(p.location);
+    setNewProvince(p.province);
+    setNewPrice(String(p.price));
+    setNewType(p.type);
+    setNewBeds(String(p.beds || 2));
+    setNewBaths(String(p.baths || 2));
+    setNewSqm(String(p.sqm || 75));
+    setNewDescription(p.description || '');
+    const pPhotos = p.photos && p.photos.length > 0 ? p.photos : [p.image];
+    setNewPhotos(pPhotos);
+    setNewMainImageIndex(0);
+    setNewPhone(p.ownerPhone || '+260977123456');
+    setNewWhatsapp(p.ownerWhatsapp || '+260977123456');
+    setCurrentPage('admin-dashboard');
+  };
+
+  const handleDeleteProperty = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this property?')) {
+      const filtered = properties.filter(p => p.id !== id);
+      setProperties(filtered);
+      showToast('Property deleted successfully');
     }
   };
 
-  // --- Successful checkout complete callback ---
-  const handlePaymentComplete = async () => {
-    if (!checkoutItem) return;
-
-    if (checkoutItem.type === 'subscription') {
-      const billId = 'sub_' + Date.now();
-      const newInvoice: BillingRecord = {
-        id: billId,
-        reference: checkoutItem.reference,
-        amount: checkoutItem.amount,
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        status: 'SUCCESSFUL'
-      };
-      
-      if (currentUser) {
-        try {
-          await addBillingRecord(currentUser.uid, newInvoice);
-          
-          // Also update the UserProfile isSubscribed state within Firestore securely
-          const profile = await getUserProfile(currentUser.uid);
-          if (profile) {
-            const date = new Date();
-            date.setDate(date.getDate() + 30);
-            const expiryString = date.toISOString();
-            const updatedProfile = {
-              ...profile,
-              isSubscribed: true,
-              subscriptionExpiresAt: expiryString
-            };
-            await saveUserProfile(updatedProfile);
-
-            // Fetch and update all owned property documents on Firestore dynamically
-            const ownerProps = properties.filter((p) => p.ownerId === currentUser.uid);
-            for (const p of ownerProps) {
-              try {
-                await updatePropertyListing(p.id, {
-                  ownerIsSubscribed: true,
-                  ownerSubscriptionExpiresAt: expiryString
-                });
-              } catch (subErr) {
-                console.warn(`Could not update subscription expiry fields on property ${p.id}:`, subErr);
-              }
-            }
-          }
-        } catch (err) {
-          console.warn('Could not persist subscription record in Firestore:', err);
-        }
-      }
-      
-      setBillingRecords(prev => [newInvoice, ...prev]);
-      setIsSubscribed(true);
-      
-      // Calculate new subscription date (+30 days)
-      const date = new Date();
-      date.setDate(date.getDate() + 30);
-      const expiryStr = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-      setSubscriptionExpiry(expiryStr);
-      setIsSubscriptionExpired(false);
-      setCheckoutItem(null);
-      
-      triggerToast('K100 Subscription successfully renewed! Your properties are now ACTIVE.', 'success');
-      navigateTo('owner-dashboard');
-    } else if (checkoutItem.type === 'listing' && selectedProperty) {
-      // Record secure rent payment
-      const paymentId = 'pay_' + Date.now();
-      const rentPaymentRecord: RentPayment = {
-        id: paymentId,
-        reference: checkoutItem.reference,
-        propertyId: selectedProperty.id,
-        propertyName: selectedProperty.name,
-        propertyLocation: selectedProperty.location,
-        renterId: currentUser ? currentUser.uid : 'seeker_anonymous',
-        renterName: userName || 'Seeker Guest',
-        renterEmail: userEmail || '',
-        renterPhone: userPhone || '',
-        ownerId: selectedProperty.ownerId || 'unknown_owner',
-        ownerName: selectedProperty.ownerName || 'Property Owner',
-        amount: checkoutItem.amount,
-        status: 'SUCCESSFUL',
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        createdAt: new Date().toISOString()
-      };
-
-      try {
-        await addRentPayment(rentPaymentRecord);
-        triggerToast(`ZMW ${checkoutItem.amount} Rent reservation successfully transacted through Tambu Secure Pay!`, 'success');
-      } catch (err) {
-        console.warn('Could not persist rent payment in Firestore, falling back to local memory state:', err);
-        triggerToast(`Rent payment recorded successfully!`, 'success');
-      }
-
-      setRentPayments(prev => [rentPaymentRecord, ...prev]);
-      setCheckoutItem(null);
-      navigateTo('seeker-dashboard');
-    } else {
-      triggerToast('Payment transaction successfully documented', 'success');
-      navigateTo(userRole === UserRole.OWNER ? 'owner-dashboard' : 'seeker-dashboard');
+  const handleContactSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contactName || !contactEmail || !contactMessage) {
+      showToast('Please fill in all contact fields', 'error');
+      return;
     }
+    showToast('Message sent successfully! Our team will contact you shortly.');
+    setContactName('');
+    setContactEmail('');
+    setContactMessage('');
+    setCurrentPage('discovery');
   };
+
+  // Filtered properties for discovery
+  const filteredProperties = properties.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          p.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          p.province.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesProvince = selectedProvince === 'All' || p.province === selectedProvince;
+    const matchesType = selectedType === 'All' || p.type === selectedType;
+    if (currentPage === 'saved') {
+      return savedIds.includes(p.id) && matchesSearch && matchesProvince && matchesType;
+    }
+    return matchesSearch && matchesProvince && matchesType;
+  });
 
   return (
-    <div className="min-h-screen bg-bg-light text-text-charcoal flex flex-col pt-16 font-sans">
-      
-      {/* Absolute Toast alert block */}
+    <div className="min-h-screen bg-[#f8f9fa] text-[#1b1c1c] font-sans flex flex-col selection:bg-[#b52330] selection:text-white">
+      {/* Toast Notification */}
       {toast && (
-        <div className="fixed top-20 right-4 sm:right-10 z-[100] animate-bounce select-none">
-          <div className={`p-4 rounded-xl shadow-lg border flex items-center gap-2.5 max-w-sm ${
-            toast.type === 'success' 
-              ? 'bg-[#78fac4] border-[#006c4c] text-[#002115]' 
-              : 'bg-[#ffdad8] border-[#b52330] text-[#b52330]'
-          }`}>
-            {toast.type === 'success' ? <Check className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
-            <span className="text-xs sm:text-sm font-bold leading-snug">{toast.message}</span>
-          </div>
+        <div className="fixed top-6 right-6 z-50 bg-[#1b1c1c] text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-white/10 animate-fade-in">
+          <div className={`w-2.5 h-2.5 rounded-full ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+          <p className="text-xs font-semibold">{toast.message}</p>
         </div>
       )}
 
-      {/* Persistent App Header */}
-      <Header
-        currentPage={currentPage}
-        isLoggedIn={isLoggedIn}
-        userRole={userRole}
-        userName={userName}
-        onBack={handleBack}
-        onNavigate={navigateTo}
-        onLogout={handleLogout}
-        isAdmin={isAdmin}
-        adminModeActive={adminModeActive}
-        chatsCount={chatsCount}
-      />
+      {/* Professional Header */}
+      <header className="bg-white border-b border-[#e4e2e2] sticky top-0 z-40 shadow-xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+          <div 
+            onClick={() => { setCurrentPage('discovery'); setSelectedProperty(null); }}
+            className="cursor-pointer"
+          >
+            <span className="text-2xl font-extrabold tracking-tight text-[#1b1c1c] lowercase">tambu</span>
+            <span className="block text-[9px] font-semibold text-gray-400 tracking-widest uppercase">Zambia Real Estate</span>
+          </div>
 
-      {/* Main Container Switch Route Engine */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 md:px-10 py-6">
-        {(() => {
-          const visibleProperties = properties.filter((p) => {
-            try {
-              const deletedKey = 'tambu_deleted_property_ids';
-              const cachedDeleted = localStorage.getItem(deletedKey);
-              const deletedList = cachedDeleted ? JSON.parse(cachedDeleted) : [];
-              if (Array.isArray(deletedList) && deletedList.includes(p.id)) {
-                return false;
-              }
-            } catch (_) {}
+          <nav className="flex items-center gap-2 sm:gap-4">
+            <button
+              onClick={() => { setCurrentPage('discovery'); setSelectedProperty(null); }}
+              className={`text-xs font-bold px-3.5 py-2.5 rounded-xl transition-all ${currentPage === 'discovery' ? 'bg-[#1b1c1c] text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+              Listings
+            </button>
 
-            return isPropertyActive(
-              p,
-              currentUser?.uid,
-              trialEndsAt,
-              isSubscribed,
-              subscriptionExpiry
-            );
-          });
+            <button
+              onClick={() => { setCurrentPage('saved'); setSelectedProperty(null); }}
+              className={`text-xs font-bold px-3.5 py-2.5 rounded-xl transition-all flex items-center gap-1.5 ${currentPage === 'saved' ? 'bg-[#1b1c1c] text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+              <Heart className={`w-4 h-4 ${savedIds.length > 0 ? 'text-rose-500 fill-current' : ''}`} />
+              <span>Saved ({savedIds.length})</span>
+            </button>
 
-          switch (currentPage) {
-            
-            // 1. Discovery Exploration Screen
-            case 'discovery':
-              return (
-                <DiscoveryView
-                  properties={visibleProperties}
-                  savedIds={savedIds}
-                  searchQuery={searchQuery}
-                  isLoggedIn={isLoggedIn}
-                  userRole={userRole}
-                  selectedProvince={selectedProvince}
-                  selectedPropertyTypes={selectedPropertyTypes}
-                  onSelectProperty={handleSelectProperty}
-                  onToggleSaved={handleToggleSaved}
-                  onNavigate={navigateTo}
-                  onUpdateFilters={(q, p, t) => {
-                    setSearchQuery(q);
-                    setSelectedProvince(p);
-                    setSelectedPropertyTypes(t);
-                  }}
-                  currentUserId={currentUser?.uid}
-                  trialEndsAt={trialEndsAt}
-                  isSubscribed={isSubscribed}
-                  subscriptionExpiry={subscriptionExpiry}
-                  isAdmin={isAdmin && adminModeActive}
-                  onDeleteProperty={handleDeleteProperty}
+            <button
+              onClick={() => { setCurrentPage('contact'); setSelectedProperty(null); }}
+              className={`text-xs font-bold px-3.5 py-2.5 rounded-xl transition-all ${currentPage === 'contact' ? 'bg-[#1b1c1c] text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+              Contact Us
+            </button>
+
+            {isAdmin && (
+              <button
+                onClick={() => { setEditingId(null); setCurrentPage('admin-dashboard'); }}
+                className={`text-xs font-bold px-3.5 py-2.5 rounded-xl transition-all flex items-center gap-1.5 ${currentPage === 'admin-dashboard' ? 'bg-[#b52330] text-white' : 'bg-rose-50 text-[#b52330] hover:bg-rose-100'}`}
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                <span>Admin Dashboard</span>
+              </button>
+            )}
+
+            {isLoggedIn ? (
+              <div className="flex items-center gap-3 pl-3 border-l border-gray-200">
+                <div className="hidden md:block text-right">
+                  <div className="text-xs font-bold text-[#1b1c1c]">{userName}</div>
+                  <div className="text-[10px] font-medium text-gray-500">{isAdmin ? 'Master Admin' : userEmail}</div>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="p-2.5 text-gray-600 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all"
+                  title="Log out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setCurrentPage('auth')}
+                className="bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Login / Sign Up</span>
+              </button>
+            )}
+          </nav>
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        {/* VIEW: AUTHENTICATION */}
+        {currentPage === 'auth' && (
+          <div className="max-w-md mx-auto bg-white rounded-3xl p-8 sm:p-10 border border-[#e4e2e2] shadow-xl my-8">
+            <div className="text-center mb-8">
+              <div className="w-14 h-14 bg-[#b52330]/10 text-[#b52330] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <User className="w-7 h-7" />
+              </div>
+              <h2 className="text-2xl font-bold tracking-tight text-[#1b1c1c]">
+                {authMode === 'login' ? 'Welcome Back to tambu' : 'Create Account'}
+              </h2>
+              <p className="text-xs text-gray-500 mt-1">
+                {authMode === 'login' ? 'Sign in to access your saved properties & contact owners' : 'Register to connect with home owners instantly'}
+              </p>
+            </div>
+
+            <div className="flex bg-gray-100 p-1 rounded-2xl mb-6">
+              <button
+                type="button"
+                onClick={() => setAuthMode('login')}
+                className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${authMode === 'login' ? 'bg-white text-[#1b1c1c] shadow-xs' : 'text-gray-500'}`}
+              >
+                Login
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthMode('register')}
+                className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${authMode === 'register' ? 'bg-white text-[#1b1c1c] shadow-xs' : 'text-gray-500'}`}
+              >
+                Sign Up
+              </button>
+            </div>
+
+            <form onSubmit={authMode === 'login' ? handleLogin : handleRegister} className="space-y-4">
+              {authMode === 'register' && (
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={authName}
+                    onChange={(e) => setAuthName(e.target.value)}
+                    placeholder="e.g. Mwansa Chanda"
+                    className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  placeholder="e.g. user@gmail.com (admin@tambu.com for admin)"
+                  className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
                 />
-              );
+              </div>
 
-            // 2. Saved list favorite overview
-            case 'saved':
-              const savedList = visibleProperties.filter((p) => savedIds.includes(p.id));
-              return (
-                <div className="space-y-8 animate-fade-in pb-20">
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Password</label>
+                <input
+                  type="password"
+                  required
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
+                />
+                {authMode === 'login' && (
+                  <p className="text-[11px] text-gray-400 mt-1">Master Admin demo: admin@tambu.com / Admin2026</p>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-3.5 rounded-xl shadow-md transition-all mt-4"
+              >
+                {authMode === 'login' ? 'Login to tambu' : 'Create Account'}
+              </button>
+            </form>
+
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => setCurrentPage('discovery')}
+                className="text-xs font-semibold text-gray-500 hover:text-[#1b1c1c]"
+              >
+                ← Back to Browse Listings
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW: CONTACT US */}
+        {currentPage === 'contact' && (
+          <div className="max-w-3xl mx-auto space-y-8 animate-fade-in pb-16">
+            <div className="bg-[#1b1c1c] text-white p-8 sm:p-12 rounded-3xl shadow-xl">
+              <h2 className="text-3xl font-extrabold tracking-tight">Contact tambu Support</h2>
+              <p className="text-xs sm:text-sm text-gray-300 mt-2">
+                Have questions about listing a property, rentals, or technical support? Our Lusaka-based support team is here to help 24/7.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white p-6 rounded-3xl border border-[#e4e2e2] shadow-sm text-center space-y-3">
+                <div className="w-12 h-12 bg-rose-50 text-[#b52330] rounded-2xl flex items-center justify-center mx-auto">
+                  <PhoneCall className="w-6 h-6" />
+                </div>
+                <h3 className="text-sm font-bold text-[#1b1c1c]">Call Us</h3>
+                <p className="text-xs text-gray-500">+260 977 123 456<br />+260 966 789 012</p>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl border border-[#e4e2e2] shadow-sm text-center space-y-3">
+                <div className="w-12 h-12 bg-rose-50 text-[#b52330] rounded-2xl flex items-center justify-center mx-auto">
+                  <Mail className="w-6 h-6" />
+                </div>
+                <h3 className="text-sm font-bold text-[#1b1c1c]">Email Support</h3>
+                <p className="text-xs text-gray-500">support@tambu.co.zm<br />admin@tambu.com</p>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl border border-[#e4e2e2] shadow-sm text-center space-y-3">
+                <div className="w-12 h-12 bg-rose-50 text-[#b52330] rounded-2xl flex items-center justify-center mx-auto">
+                  <Building className="w-6 h-6" />
+                </div>
+                <h3 className="text-sm font-bold text-[#1b1c1c]">Head Office</h3>
+                <p className="text-xs text-gray-500">Cairo Road, CBD<br />Lusaka, Zambia</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl p-8 sm:p-10 border border-[#e4e2e2] shadow-xl">
+              <h3 className="text-lg font-bold text-[#1b1c1c] mb-6">Send Us a Message</h3>
+              <form onSubmit={handleContactSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <h1 className="text-2xl sm:text-3xl font-black text-[#1b1c1c]">Saved Homes</h1>
-                    <p className="text-xs sm:text-sm text-[#5a403f]">Your personal bookmark catalog of favorite houses & boarding rooms</p>
+                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Your Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={contactName}
+                      onChange={(e) => setContactName(e.target.value)}
+                      placeholder="e.g. Chileshe Mwewa"
+                      className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Email Address</label>
+                    <input
+                      type="email"
+                      required
+                      value={contactEmail}
+                      onChange={(e) => setContactEmail(e.target.value)}
+                      placeholder="e.g. chileshe@gmail.com"
+                      className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Message / Inquiry</label>
+                  <textarea
+                    rows={5}
+                    required
+                    value={contactMessage}
+                    onChange={(e) => setContactMessage(e.target.value)}
+                    placeholder="How can we assist you with your property search or listing?"
+                    className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl p-4 text-xs font-medium text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
+                  ></textarea>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-4 rounded-xl shadow-md transition-all"
+                >
+                  Submit Inquiry
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW: ADMIN DASHBOARD */}
+        {currentPage === 'admin-dashboard' && isAdmin && (
+          <div className="space-y-8 animate-fade-in pb-16">
+            <div className="bg-[#1b1c1c] text-white p-8 sm:p-10 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+              <div>
+                <span className="text-xs font-bold bg-[#b52330] text-white px-3 py-1 rounded-xl uppercase tracking-wider">
+                  Master Admin Portal
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-extrabold mt-2">Property Management & Image Upload</h2>
+                <p className="text-xs text-gray-300 mt-1">Upload multiple photos at once, set cover images, edit details, or remove active listings instantly.</p>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingId(null);
+                  setNewTitle('');
+                  setNewLocation('');
+                  setNewPrice('');
+                  setNewDescription('');
+                  setNewPhotos([
+                    'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80',
+                    'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80'
+                  ]);
+                  setNewMainImageIndex(0);
+                }}
+                className="bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold px-6 py-3.5 rounded-xl shadow-lg transition-all flex items-center gap-2 shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create New Listing Form</span>
+              </button>
+            </div>
+
+            {/* Add / Edit Property Form with Multiple Image Upload */}
+            <div className="bg-white rounded-3xl p-8 sm:p-10 border border-[#e4e2e2] shadow-xl">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
+                <h3 className="text-lg font-bold text-[#1b1c1c]">
+                  {editingId ? 'Edit Property Listing' : 'List New Property (Multiple Photos Supported)'}
+                </h3>
+                {editingId && (
+                  <button
+                    onClick={() => { setEditingId(null); setNewTitle(''); }}
+                    className="text-xs font-bold text-gray-500 hover:text-[#b52330]"
+                  >
+                    Cancel Editing
+                  </button>
+                )}
+              </div>
+
+              <form onSubmit={handleSaveProperty} className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Property Title</label>
+                    <input
+                      type="text"
+                      required
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      placeholder="e.g. Olympic Luxury Villa"
+                      className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Location / Neighborhood</label>
+                    <input
+                      type="text"
+                      required
+                      value={newLocation}
+                      onChange={(e) => setNewLocation(e.target.value)}
+                      placeholder="e.g. Rhodes Park, Lusaka"
+                      className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Province</label>
+                    <select
+                      value={newProvince}
+                      onChange={(e) => setNewProvince(e.target.value as Province)}
+                      className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
+                    >
+                      {Object.values(Province).map(prov => (
+                        <option key={prov} value={prov}>{prov}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Property Type</label>
+                    <select
+                      value={newType}
+                      onChange={(e) => setNewType(e.target.value as PropertyType)}
+                      className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
+                    >
+                      {Object.values(PropertyType).map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Price (ZMW / Month)</label>
+                    <input
+                      type="number"
+                      required
+                      value={newPrice}
+                      onChange={(e) => setNewPrice(e.target.value)}
+                      placeholder="e.g. 8500"
+                      className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Bedrooms</label>
+                    <input
+                      type="number"
+                      value={newBeds}
+                      onChange={(e) => setNewBeds(e.target.value)}
+                      className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Bathrooms</label>
+                    <input
+                      type="number"
+                      value={newBaths}
+                      onChange={(e) => setNewBaths(e.target.value)}
+                      className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Area (sqm)</label>
+                    <input
+                      type="number"
+                      value={newSqm}
+                      onChange={(e) => setNewSqm(e.target.value)}
+                      className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c]"
+                    />
+                  </div>
+                </div>
+
+                {/* Multiple Images Upload & Gallery */}
+                <div className="space-y-4 bg-[#f8f9fa] p-6 rounded-3xl border border-[#e4e2e2]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold text-[#1b1c1c] uppercase tracking-wider">Property Photo Gallery ({newPhotos.length} uploaded)</h4>
+                      <p className="text-[11px] text-gray-500 mt-0.5">Select multiple pictures at once. Click any picture to set as main cover photo.</p>
+                    </div>
+                    <label className="bg-[#1b1c1c] hover:bg-black text-white text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer shadow-md transition-all flex items-center gap-2">
+                      <Upload className="w-4 h-4" />
+                      <span>Upload Multiple Pictures</span>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={handleMultipleImageUpload}
+                        className="hidden"
+                      />
+                    </label>
                   </div>
 
-                  {savedList.length === 0 ? (
-                    <div className="bg-white rounded-2xl p-1   sm:p-12 text-center border border-[#e4e2e2] py-16 space-y-4">
-                      <Heart className="w-12 h-12 text-gray-300 mx-auto stroke-[1.5px]" />
-                      <div className="text-sm font-bold text-[#5a403f]">No Saved Properties</div>
-                      <p className="text-xs text-gray-400 max-w-sm mx-auto">Click the heart button on any boarding houses or luxury complexes during your search searches.</p>
-                      <button 
-                        onClick={() => navigateTo('discovery')}
-                        className="bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-2.5 px-6 rounded-xl active:scale-95 transition-all shadow-md"
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                    {newPhotos.map((photoUrl, idx) => (
+                      <div 
+                        key={idx} 
+                        onClick={() => setNewMainImageIndex(idx)}
+                        className={`relative h-28 rounded-2xl overflow-hidden border-2 cursor-pointer group transition-all ${newMainImageIndex === idx ? 'border-[#b52330] shadow-md ring-2 ring-[#b52330]/20' : 'border-gray-200'}`}
                       >
-                        Explore properties now
+                        <img src={photoUrl} alt={`Upload ${idx}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        {newMainImageIndex === idx && (
+                          <div className="absolute top-2 left-2 bg-[#b52330] text-white text-[9px] font-bold px-2 py-0.5 rounded-lg shadow-sm">
+                            Cover Photo
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); removePhoto(idx); }}
+                          className="absolute top-2 right-2 p-1.5 bg-black/70 hover:bg-rose-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Remove photo"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Contact Phone</label>
+                    <input
+                      type="text"
+                      value={newPhone}
+                      onChange={(e) => setNewPhone(e.target.value)}
+                      className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">WhatsApp Number</label>
+                    <input
+                      type="text"
+                      value={newWhatsapp}
+                      onChange={(e) => setNewWhatsapp(e.target.value)}
+                      className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Description</label>
+                  <textarea
+                    rows={4}
+                    required
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    placeholder="Describe the property features, security, power backup..."
+                    className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl p-4 text-xs font-medium text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
+                  ></textarea>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{editingId ? 'Save Changes' : 'Publish Listing to tambu'}</span>
+                </button>
+              </form>
+            </div>
+
+            {/* Existing Properties Grid */}
+            <div className="bg-white rounded-3xl p-8 sm:p-10 border border-[#e4e2e2] shadow-xl space-y-6">
+              <h3 className="text-lg font-bold text-[#1b1c1c]">Manage All Listings ({properties.length})</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {properties.map(p => (
+                  <div key={p.id} className="bg-[#f8f9fa] rounded-2xl overflow-hidden border border-[#e4e2e2] flex flex-col justify-between">
+                    <div>
+                      <div className="relative h-44 w-full">
+                        <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                        <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-lg">
+                          {p.type}
+                        </div>
+                        {p.photos && p.photos.length > 1 && (
+                          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[9px] font-bold px-2 py-0.5 rounded-md">
+                            📷 {p.photos.length} photos
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4 space-y-2">
+                        <div className="text-xs font-bold text-gray-500">{p.location}, {p.province}</div>
+                        <h4 className="text-sm font-bold text-[#1b1c1c] line-clamp-1">{p.name}</h4>
+                        <div className="text-sm font-extrabold text-[#b52330]">ZMW {p.price.toLocaleString()} /mo</div>
+                      </div>
+                    </div>
+
+                    <div className="p-4 pt-0 flex items-center gap-2">
+                      <button
+                        onClick={() => handleStartEdit(p)}
+                        className="flex-1 bg-white hover:bg-gray-100 text-[#1b1c1c] text-xs font-bold py-2.5 rounded-xl border border-[#e4e2e2] shadow-xs flex items-center justify-center gap-1.5 transition-all"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteProperty(p.id)}
+                        className="flex-1 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold py-2.5 rounded-xl border border-rose-200 flex items-center justify-center gap-1.5 transition-all"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
                       </button>
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6">
-                      {savedList.map((item) => (
-                        <div
-                          key={item.id}
-                          className="bg-white rounded-2xl border border-[#e4e2e2] overflow-hidden group shadow-sm hover:shadow-md transition-all"
-                        >
-                          <div className="relative aspect-square sm:aspect-[4/3] overflow-hidden bg-[#eae8e7]">
-                            <img
-                              alt={item.name}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer"
-                              referrerPolicy="no-referrer"
-                              src={item.image}
-                              onClick={() => handleSelectProperty(item)}
-                            />
-                            {item.verified && (
-                              <div 
-                                className="absolute top-3 left-3 w-8 h-8 rounded-full bg-white/85 flex items-center justify-center text-emerald-600 shadow-sm z-10 border border-emerald-150/50"
-                                title="Verified Property"
-                              >
-                                <Check className="w-4 h-4 stroke-[3px]" />
-                              </div>
-                            )}
-                            <button
-                              onClick={(e) => handleToggleSaved(item.id, e)}
-                              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/85 flex items-center justify-center text-[#b52330] shadow-sm active:scale-90 transition-transform"
-                            >
-                              <Heart className="w-4 h-4 fill-current text-[#b52330]" />
-                            </button>
-                          </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
-                          <div className="p-3 sm:p-4 space-y-1.5 sm:space-y-2">
-                            <h3 
-                              onClick={() => handleSelectProperty(item)}
-                              className="font-bold text-xs sm:text-base text-[#1b1c1c] hover:text-[#b52330] transition-colors cursor-pointer truncate"
-                            >
-                              {item.name}
-                            </h3>
-                            <p className="text-[10px] sm:text-xs text-[#5a403f] truncate">{item.location}</p>
-                            <span className="text-[#b52330] font-extrabold text-xs sm:text-base block pt-0.5">
-                              ZMW {item.price !== undefined && item.price !== null ? Number(item.price).toLocaleString() : '0'}
-                            </span>
-                          </div>
+        {/* VIEW: PROPERTY DETAILS */}
+        {currentPage === 'details' && selectedProperty && (
+          <div className="max-w-4xl mx-auto space-y-6 animate-fade-in pb-16">
+            <button
+              onClick={() => { setCurrentPage('discovery'); setSelectedProperty(null); }}
+              className="inline-flex items-center gap-2 text-xs font-bold text-gray-600 hover:text-[#1b1c1c] bg-white border border-[#e4e2e2] px-4 py-2.5 rounded-xl shadow-xs transition-all"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Listings</span>
+            </button>
+
+            {/* Image gallery with multiple photo thumbnails */}
+            <div className="bg-white rounded-3xl overflow-hidden border border-[#e4e2e2] shadow-xl">
+              <div className="relative h-[380px] sm:h-[480px] w-full bg-gray-900">
+                <img
+                  src={selectedProperty.image}
+                  alt={selectedProperty.name}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-4 right-4 flex gap-2">
+                  <button
+                    onClick={(e) => toggleSave(selectedProperty.id, e)}
+                    className="p-3 bg-white/90 backdrop-blur-md rounded-2xl shadow-lg hover:bg-white transition-all text-[#b52330]"
+                  >
+                    <Heart className={`w-5 h-5 ${savedIds.includes(selectedProperty.id) ? 'fill-current' : ''}`} />
+                  </button>
+                </div>
+                {selectedProperty.verified && (
+                  <div className="absolute top-4 left-4 bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-lg flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5" />
+                    <span>tambu Verified</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Thumbnail strip if multiple photos exist */}
+              {selectedProperty.photos && selectedProperty.photos.length > 1 && (
+                <div className="flex gap-2 p-4 bg-gray-100 overflow-x-auto border-b border-[#e4e2e2]">
+                  {selectedProperty.photos.map((photoUrl, idx) => (
+                    <div 
+                      key={idx}
+                      onClick={() => {
+                        setSelectedProperty({ ...selectedProperty, image: photoUrl });
+                      }}
+                      className={`w-20 h-16 rounded-xl overflow-hidden shrink-0 cursor-pointer border-2 transition-all ${selectedProperty.image === photoUrl ? 'border-[#b52330] scale-105 shadow-md' : 'border-transparent opacity-70 hover:opacity-100'}`}
+                    >
+                      <img src={photoUrl} alt={`Thumb ${idx}`} className="w-full h-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="p-6 sm:p-8 space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#e4e2e2] pb-6">
+                  <div>
+                    <span className="text-xs font-bold px-3 py-1 bg-[#b52330]/10 text-[#b52330] rounded-lg">
+                      {selectedProperty.type}
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-[#1b1c1c] mt-2">{selectedProperty.name}</h2>
+                    <p className="text-xs font-semibold text-gray-500 flex items-center gap-1 mt-1">
+                      <MapPin className="w-3.5 h-3.5 text-[#b52330]" />
+                      <span>{selectedProperty.location}, {selectedProperty.province} Province</span>
+                    </p>
+                  </div>
+                  <div className="text-left sm:text-right">
+                    <div className="text-2xl sm:text-3xl font-extrabold text-[#b52330]">
+                      ZMW {selectedProperty.price.toLocaleString()}
+                    </div>
+                    <div className="text-xs font-medium text-gray-500">per month / inclusive</div>
+                  </div>
+                </div>
+
+                {/* Key features grid */}
+                <div className="grid grid-cols-3 gap-4 bg-[#f8f9fa] p-4 rounded-2xl border border-[#e4e2e2]/60 text-center">
+                  <div>
+                    <div className="text-[10px] font-bold text-gray-400 uppercase">Bedrooms</div>
+                    <div className="text-sm font-bold text-[#1b1c1c] mt-0.5">{selectedProperty.beds} Beds</div>
+                  </div>
+                  <div className="border-x border-[#e4e2e2]">
+                    <div className="text-[10px] font-bold text-gray-400 uppercase">Bathrooms</div>
+                    <div className="text-sm font-bold text-[#1b1c1c] mt-0.5">{selectedProperty.baths} Baths</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold text-gray-400 uppercase">Area</div>
+                    <div className="text-sm font-bold text-[#1b1c1c] mt-0.5">{selectedProperty.sqm || 75} sqm</div>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <h3 className="text-sm font-bold text-[#1b1c1c] uppercase tracking-wider mb-2">About Property</h3>
+                  <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
+                    {selectedProperty.description || 'Experience ultimate comfort and convenience in this secure, fully verified Zambian property. Features uninterrupted power backup solutions, high-speed borehole water access, spacious modern rooms, and dedicated professional management.'}
+                  </p>
+                </div>
+
+                {/* Amenities */}
+                {selectedProperty.amenities && selectedProperty.amenities.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-bold text-[#1b1c1c] uppercase tracking-wider mb-3">Amenities & Infrastructure</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                      {selectedProperty.amenities.map((amenity, idx) => (
+                        <div key={idx} className="flex items-center gap-2 bg-[#f8f9fa] border border-[#e4e2e2] px-3.5 py-2.5 rounded-xl text-xs font-semibold text-gray-700">
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>{amenity}</span>
                         </div>
                       ))}
                     </div>
-                  )}
-                </div>
-              );
+                  </div>
+                )}
 
-            // 3. Detailed Property Showcase screen
-            case 'details':
-              let activeProperty = selectedProperty;
-              if (!activeProperty) {
-                try {
-                  const saved = localStorage.getItem('tambu_selected_property');
-                  if (saved) {
-                    activeProperty = JSON.parse(saved);
-                  }
-                } catch (e) {}
-              }
-              if (!activeProperty && properties && properties.length > 0) {
-                activeProperty = properties[0];
-              }
-              if (!activeProperty) {
-                return (
-                  <div className="bg-white rounded-2xl p-12 text-center border border-[#e4e2e2] space-y-4 my-12 shadow-sm">
-                    <p className="text-sm font-bold text-[#5a403f]">No property selected or details session expired.</p>
-                    <button 
-                      onClick={() => navigateTo('discovery')}
-                      className="bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-2.5 px-6 rounded-xl transition-all shadow-md"
+                {/* Contact Owner Action Box */}
+                <div className="bg-[#1b1c1c] text-white p-6 sm:p-8 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xl">
+                  <div>
+                    <div className="text-xs font-bold text-rose-400 uppercase tracking-wider">Property Owner / Manager</div>
+                    <div className="text-lg font-bold text-white mt-0.5">{selectedProperty.ownerName || 'tambu Verified Owner'}</div>
+                    <p className="text-xs text-gray-400 mt-1">Contact directly via WhatsApp or Phone to schedule a viewing or secure lease.</p>
+                  </div>
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <a
+                      href={`https://wa.me/${(selectedProperty.ownerWhatsapp || selectedProperty.ownerPhone || '+260977123456').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hello, I am interested in your property "${selectedProperty.name}" listed on tambu.`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-6 py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
                     >
-                      Return to Listings
-                    </button>
-                  </div>
-                );
-              }
-              return (
-                <PropertyDetailsView
-                  property={activeProperty}
-                  savedIds={savedIds}
-                  isLoggedIn={isLoggedIn}
-                  currentUserName={userName || currentUser?.displayName || currentUser?.email?.split('@')[0] || ''}
-                  onToggleSaved={handleToggleSaved}
-                  onNavigate={navigateTo}
-                  onShowToast={triggerToast}
-                  isAdmin={isAdmin && adminModeActive}
-                  onDeleteProperty={handleDeleteProperty}
-                />
-              );
-
-            // Chat View routing option
-            case 'chat':
-              return (
-                <ChatView
-                  activeProperty={selectedProperty}
-                  currentUserRole={userRole}
-                  currentUserName={userName || currentUser?.displayName || currentUser?.email?.split('@')[0] || 'User'}
-                  currentUserEmail={currentUser?.email || ''}
-                  currentUserId={currentUser ? currentUser.uid : 'demo_guest_seeker_1'}
-                  onBack={handleBack}
-                  isAdmin={isAdmin && adminModeActive}
-                />
-              );
-
-            // 4. Secure checkout configurations
-            case 'checkout':
-              return (
-                <CheckoutView
-                  userPhone={userPhone}
-                  onConfirmManualPayment={handleConfirmManualPayment}
-                  onCancel={handleBack}
-                  title={checkoutItem?.name}
-                  description={checkoutItem?.detail}
-                  amount={checkoutItem?.amount}
-                  reference={checkoutItem?.reference}
-                />
-              );
-
-            // 5. Active payment transaction loaders
-            case 'payment-waiting':
-              return (
-                <ProcessingView
-                  provider={momoProvider}
-                  phone={userPhone}
-                  onComplete={handlePaymentComplete}
-                  tx_ref={currentFlwRef}
-                  amount={checkoutItem?.amount}
-                  paymentUrl={currentFlwUrl}
-                />
-              );
-
-            // 6. Advanced filters sheet
-            case 'filters':
-              return (
-                <FiltersView
-                  initialProvince={selectedProvince}
-                  initialMinPrice={minPrice}
-                  initialMaxPrice={maxPrice}
-                  initialPropertyTypes={selectedPropertyTypes}
-                  initialSearchQuery={searchQuery}
-                  onApplyFilters={handleApplyFilters}
-                  onClearFilters={() => {
-                    setSelectedProvince('');
-                    setMinPrice(100);
-                    setMaxPrice(5000000);
-                    setSelectedPropertyTypes([]);
-                    setSearchQuery('');
-                  }}
-                />
-              );
-
-             // 7. Seeker portfolio logs
-            case 'seeker-dashboard':
-              return (
-                <DashboardView
-                  userRole={UserRole.SEEKER}
-                  userName={userName}
-                  properties={properties}
-                  savedIds={savedIds}
-                  activities={activities}
-                  searches={searches}
-                  billingRecords={billingRecords}
-                  onSelectProperty={handleSelectProperty}
-                  onNavigate={navigateTo}
-                  onDeleteProperty={handleDeleteProperty}
-                  onShowToast={triggerToast}
-                  rentPayments={rentPayments}
-                  ownerId={currentUser?.uid}
-                  onTogglePropertyAvailability={handleTogglePropertyAvailability}
-                  onTogglePropertySpotlight={handleTogglePropertySpotlight}
-                  onTogglePropertyVerified={handleTogglePropertyVerified}
-                  supportMessages={supportMessages}
-                  onSwitchRole={handleSwitchRole}
-                />
-              );
-
-            // 8. Owner portfolio logs
-            case 'owner-dashboard':
-              return (
-                <DashboardView
-                  userRole={UserRole.OWNER}
-                  userName={userName}
-                  properties={properties}
-                  savedIds={savedIds}
-                  activities={activities}
-                  searches={searches}
-                  billingRecords={billingRecords}
-                  onSelectProperty={handleSelectProperty}
-                  onNavigate={navigateTo}
-                  onDeleteProperty={handleDeleteProperty}
-                  onShowToast={triggerToast}
-                  isSubscriptionExpired={isSubscriptionExpired}
-                  subscriptionExpiry={subscriptionExpiry}
-                  onPaySubscription={handlePaySubscription}
-                  onToggleSubscriptionExpirySimulated={handleToggleSubscriptionExpirySimulated}
-                  isAdmin={isAdmin}
-                  trialEndsAt={trialEndsAt}
-                  isSubscribed={isSubscribed}
-                  rentPayments={rentPayments}
-                  ownerId={currentUser?.uid}
-                  onTogglePropertyAvailability={handleTogglePropertyAvailability}
-                  onTogglePropertySpotlight={handleTogglePropertySpotlight}
-                  onTogglePropertyVerified={handleTogglePropertyVerified}
-                  supportMessages={supportMessages}
-                  onSwitchRole={handleSwitchRole}
-                />
-              );
-
-            // 9. Inputting placements view (Owner mode)
-            case 'add-property':
-              return (
-                <ListingFormView
-                  selectedPhotos={selectedPhotos}
-                  onOpenPhotoSelector={() => navigateTo('select-photos')}
-                  onPublishListing={handlePublishListing}
-                  onCancel={handleBack}
-                  initialPhone={userPhone}
-                  isAdmin={isAdmin}
-                />
-              );
-
-            // 10. Photo choices selection screen
-            case 'select-photos':
-              return (
-                <PhotoSelectorView
-                  initialSelected={selectedPhotos}
-                  onConfirmSelection={(photos) => {
-                    setSelectedPhotos(photos);
-                    navigateTo('add-property');
-                  }}
-                  onCancel={handleBack}
-                />
-              );
-
-            // 11. Security login validation screen
-            case 'login':
-            case 'register':
-              return (
-                <div className="max-w-[420px] mx-auto pt-10 pb-20 px-4 sm:px-0">
-                  <div className="bg-white rounded-3xl border border-slate-100 shadow-xl p-8 space-y-6 animate-fade-in">
-                    {/* Header */}
-                    <div className="text-center space-y-2">
-                      <span className="font-extrabold text-4xl text-[#b52330] lowercase tracking-tight select-none font-sans block">tambu</span>
-                      <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                        {isRegistering ? 'Create Your Account' : 'Welcome Back'}
-                      </h1>
-                      <p className="text-xs text-slate-500 max-w-[280px] mx-auto leading-relaxed">
-                        {isRegistering 
-                          ? 'Sign up to list or find rental rooms easily.' 
-                          : 'Sign in to manage your Tambu properties or bookings.'}
-                      </p>
-                    </div>
-
-                    {authErrorMsg && (
-                      <div className="p-3.5 bg-red-50 border border-red-100 rounded-2xl">
-                        <p className="text-[11px] text-[#b52330] leading-relaxed font-bold text-center">{authErrorMsg}</p>
-                      </div>
-                    )}
-
-                    {/* Forms */}
-                    {!isRegistering ? (
-                      /* SIGN IN FORM */
-                      <form onSubmit={handleLoginSubmit} className="space-y-4">
-                        <div className="space-y-3.5">
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                              Email Address
-                            </label>
-                            <input
-                              type="email"
-                              value={loginEmail}
-                              onChange={(e) => setLoginEmail(e.target.value)}
-                              placeholder="name@example.com"
-                              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-100 rounded-xl focus:bg-white focus:ring-1 focus:ring-slate-300 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
-                              required
-                            />
-                          </div>
-
-                          <div>
-                            <div className="flex justify-between items-center mb-1">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                                Password
-                              </label>
-                            </div>
-                            <input
-                              type="password"
-                              value={loginPassword}
-                              onChange={(e) => setLoginPassword(e.target.value)}
-                              placeholder="••••••••"
-                              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-100 rounded-xl focus:bg-white focus:ring-1 focus:ring-slate-300 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
-                              required
-                            />
-                          </div>
-                        </div>
-
-                        <button
-                          type="submit"
-                          className="w-full py-3 mt-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-                        >
-                          <LogIn className="w-3.5 h-3.5" />
-                          <span>Sign In</span>
-                        </button>
-                      </form>
-                    ) : (
-                      /* SIGN UP FORM */
-                      <form onSubmit={handleRegisterSubmit} className="space-y-4">
-                        {/* Notice for Boardinghouse Seeker Account */}
-                        <div className="bg-[#fbf9f8] p-3 rounded-xl border border-[#e4e2e2] text-center space-y-1">
-                          <span className="text-[10px] uppercase font-bold text-[#b52330] tracking-wider block">
-                            Boardinghouse Seeker Account
-                          </span>
-                          <p className="text-[11px] text-[#5a403f] leading-relaxed">
-                            Create your account to browse, save, and list properties securely.
-                          </p>
-                        </div>
-
-                        <div className="space-y-3">
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                              Full Name
-                            </label>
-                            <input
-                              type="text"
-                              value={regName}
-                              onChange={(e) => setRegName(e.target.value)}
-                              placeholder="e.g. Chanda Mulenga"
-                              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-100 rounded-xl focus:bg-white focus:ring-1 focus:ring-slate-300 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
-                              required
-                            />
-                          </div>
-
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                              Phone Number
-                            </label>
-                            <input
-                              type="text"
-                              value={regPhone}
-                              onChange={(e) => setRegPhone(e.target.value)}
-                              placeholder="e.g. +260977112233"
-                              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-100 rounded-xl focus:bg-white focus:ring-1 focus:ring-slate-300 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
-                              required
-                            />
-                          </div>
-
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                              Email Address
-                            </label>
-                            <input
-                              type="email"
-                              value={regEmail}
-                              onChange={(e) => setRegEmail(e.target.value)}
-                              placeholder="you@example.com"
-                              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-100 rounded-xl focus:bg-white focus:ring-1 focus:ring-slate-300 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
-                              required
-                            />
-                          </div>
-
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                              Password
-                            </label>
-                            <input
-                              type="password"
-                              value={regPassword}
-                              onChange={(e) => setRegPassword(e.target.value)}
-                              placeholder="At least 6 characters"
-                              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-100 rounded-xl focus:bg-white focus:ring-1 focus:ring-slate-300 focus:outline-none transition-all placeholder:text-slate-400 font-medium"
-                              required
-                            />
-                          </div>
-                        </div>
-
-                        <button
-                          type="submit"
-                          className="w-full py-3 mt-2 bg-[#b52330] hover:bg-[#a01c27] text-white text-xs font-bold rounded-xl active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm font-black"
-                        >
-                          Create Account
-                        </button>
-                      </form>
-                    )}
-
-                    {/* Mode Switcher Footer */}
-                    <div className="text-center pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsRegistering(!isRegistering);
-                          setAuthErrorMsg('');
-                        }}
-                        className="text-xs text-[#b52330] hover:underline font-bold transition-all cursor-pointer"
-                      >
-                        {isRegistering 
-                          ? 'Already have an account? Sign In' 
-                          : "Don't have an account? Sign Up"}
-                      </button>
-                    </div>
+                      <MessageSquare className="w-4 h-4" />
+                      <span>WhatsApp Owner</span>
+                    </a>
+                    <a
+                      href={`tel:${selectedProperty.ownerPhone || '+260977123456'}`}
+                      className="flex-1 sm:flex-none bg-white hover:bg-gray-100 text-[#1b1c1c] text-xs font-bold px-6 py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+                    >
+                      <Phone className="w-4 h-4 text-[#b52330]" />
+                      <span>Call Now</span>
+                    </a>
                   </div>
                 </div>
-              );
 
-            // 13. System Contact Feedback form
-            case 'contact-us':
-              return (
-                <ContactView
-                  userEmail={currentUser?.email || ''}
-                  userName={userName || ''}
-                  onCancel={() => navigateTo('discovery')}
-                  onSendContact={async (msg) => {
-                    try {
-                      const msgId = 'msg_' + Date.now();
-                      const fullMsg: SupportMessage = {
-                        id: msgId,
-                        ...msg,
-                        createdAt: new Date().toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        }),
-                      };
-                      await createSupportMessage(fullMsg);
-                      triggerToast('Inquiry reached Super Admin hub successfully!', 'success');
-                      return true;
-                    } catch (err) {
-                      triggerToast('Error saving contact request', 'error');
-                      return false;
-                    }
-                  }}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW: DISCOVERY & SAVED LISTINGS */}
+        {(currentPage === 'discovery' || currentPage === 'saved') && (
+          <div className="space-y-8">
+            {/* Hero banner */}
+            <div className="bg-gradient-to-r from-[#1b1c1c] to-[#3a3b3c] text-white p-8 sm:p-12 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-8">
+              <div className="space-y-3 max-w-xl text-center md:text-left">
+                <span className="text-xs font-bold bg-white/10 px-3 py-1.5 rounded-xl text-rose-400 uppercase tracking-widest">
+                  Zambia's #1 Real Estate Portal
+                </span>
+                <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
+                  {currentPage === 'saved' ? 'Your Saved Favorites' : 'Find Your Perfect Home in Zambia'}
+                </h2>
+                <p className="text-xs sm:text-sm text-gray-300">
+                  {currentPage === 'saved' 
+                    ? 'Review and manage your shortlisted properties across Lusaka, Copperbelt, and Livingstone.'
+                    : 'Verified apartments, houses, and student housing with reliable electricity and water backups.'}
+                </p>
+              </div>
+
+              {!isLoggedIn && currentPage === 'discovery' && (
+                <div className="bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/10 text-center max-w-sm w-full">
+                  <h3 className="text-sm font-bold text-white mb-1">Create an Account</h3>
+                  <p className="text-[11px] text-gray-300 mb-4">Save favorites and connect instantly with home owners.</p>
+                  <button
+                    onClick={() => setCurrentPage('auth')}
+                    className="w-full bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-3 rounded-xl shadow-md transition-all"
+                  >
+                    Login / Sign Up
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Search & Filters Bar */}
+            <div className="bg-white p-4 rounded-2xl border border-[#e4e2e2] shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div className="relative w-full md:w-96">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by location, neighborhood, title..."
+                  className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl pl-11 pr-4 py-3 text-xs font-medium text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
                 />
-              );
+              </div>
 
-            default:
-              return null;
-          }
-        })()}
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <select
+                  value={selectedProvince}
+                  onChange={(e) => setSelectedProvince(e.target.value as any)}
+                  className="bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-semibold text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
+                >
+                  <option value="All">All Provinces</option>
+                  {Object.values(Province).map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value as any)}
+                  className="bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-semibold text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
+                >
+                  <option value="All">All Property Types</option>
+                  {Object.values(PropertyType).map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Properties Grid */}
+            {filteredProperties.length === 0 ? (
+              <div className="bg-white rounded-3xl p-16 text-center border border-[#e4e2e2] space-y-4 shadow-sm my-8">
+                <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto text-gray-400">
+                  <Home className="w-8 h-8" />
+                </div>
+                <h3 className="text-lg font-bold text-[#1b1c1c]">No properties found</h3>
+                <p className="text-xs text-gray-500 max-w-md mx-auto">
+                  {currentPage === 'saved' ? 'You have not saved any properties to your favorites yet.' : 'Try adjusting your search criteria or province filters.'}
+                </p>
+                {currentPage === 'saved' && (
+                  <button
+                    onClick={() => setCurrentPage('discovery')}
+                    className="bg-[#b52330] text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow-md"
+                  >
+                    Browse Listings
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredProperties.map((property) => (
+                  <div
+                    key={property.id}
+                    onClick={() => { setSelectedProperty(property); setCurrentPage('details'); }}
+                    className="bg-white rounded-3xl overflow-hidden border border-[#e4e2e2] shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col"
+                  >
+                    <div className="relative h-60 w-full overflow-hidden bg-gray-100">
+                      <img
+                        src={property.image}
+                        alt={property.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute top-3 left-3 bg-[#1b1c1c]/80 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-xl">
+                        {property.type}
+                      </div>
+                      <button
+                        onClick={(e) => toggleSave(property.id, e)}
+                        className="absolute top-3 right-3 p-2.5 bg-white/90 backdrop-blur-md rounded-xl shadow-md text-[#b52330] hover:scale-110 transition-all"
+                      >
+                        <Heart className={`w-4 h-4 ${savedIds.includes(property.id) ? 'fill-current' : ''}`} />
+                      </button>
+                      {property.verified && (
+                        <div className="absolute bottom-3 left-3 bg-emerald-600/90 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1">
+                          <Shield className="w-3 h-3" />
+                          <span>Verified</span>
+                        </div>
+                      )}
+                      {property.photos && property.photos.length > 1 && (
+                        <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur-md text-white text-[9px] font-bold px-2.5 py-1 rounded-lg">
+                          📷 {property.photos.length} photos
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-[#b52330]" />
+                          <span>{property.location}, {property.province}</span>
+                        </div>
+                        <h3 className="text-base font-bold text-[#1b1c1c] mt-1 group-hover:text-[#b52330] transition-colors line-clamp-1">
+                          {property.name}
+                        </h3>
+                      </div>
+
+                      <div className="flex items-center gap-4 pt-3 border-t border-gray-100 text-xs font-semibold text-gray-600">
+                        <div className="flex items-center gap-1.5">
+                          <Bed className="w-4 h-4 text-gray-400" />
+                          <span>{property.beds} Beds</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Bath className="w-4 h-4 text-gray-400" />
+                          <span>{property.baths} Baths</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Home className="w-4 h-4 text-gray-400" />
+                          <span>{property.sqm || 75} sqm</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2">
+                        <div>
+                          <div className="text-xs text-gray-400 font-medium">Rent Price</div>
+                          <div className="text-lg font-extrabold text-[#1b1c1c]">
+                            ZMW {property.price.toLocaleString()} <span className="text-xs font-normal text-gray-500">/mo</span>
+                          </div>
+                        </div>
+                        <span className="text-xs font-bold text-[#b52330] bg-[#b52330]/10 px-3 py-2 rounded-xl group-hover:bg-[#b52330] group-hover:text-white transition-all">
+                          View Details →
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
       </main>
 
-      {/* Persistent Bottom Mobile Nav */}
-      <BottomNav
-        currentPage={currentPage}
-        isLoggedIn={isLoggedIn}
-        userRole={userRole}
-        isAdmin={isAdmin}
-        onNavigate={navigateTo}
-        chatsCount={chatsCount}
-      />
-
+      {/* Footer */}
+      <footer className="bg-white border-t border-[#e4e2e2] mt-16 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-500">
+          <div className="flex items-center gap-2">
+            <span className="font-extrabold text-[#1b1c1c] lowercase text-sm">tambu</span>
+            <span>Real Estate Portal © 2026 Zambia. All rights reserved.</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <span>Admin account: <strong className="text-[#1b1c1c]">admin@tambu.com</strong> / Admin2026</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
