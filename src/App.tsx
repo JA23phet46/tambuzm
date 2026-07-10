@@ -78,8 +78,15 @@ export default function App() {
   const [newType, setNewType] = useState<PropertyType>(PropertyType.APARTMENT);
   const [newBeds, setNewBeds] = useState('2');
   const [newBaths, setNewBaths] = useState('2');
-  const [newSqm, setNewSqm] = useState('85');
   const [newDescription, setNewDescription] = useState('');
+  const [newAmenities, setNewAmenities] = useState<string[]>([
+    'Continuous Electricity Backup',
+    'Borehole Water',
+    'Secured Perimeter Wall',
+    'Air Conditioning',
+    'Modern Kitchen'
+  ]);
+  const [customAmenityInput, setCustomAmenityInput] = useState('');
   
   // Multiple photos state
   const [newPhotos, setNewPhotos] = useState<string[]>([
@@ -298,12 +305,12 @@ export default function App() {
             type: newType,
             beds: Number(newBeds),
             baths: Number(newBaths),
-            sqm: Number(newSqm) || 75,
             image: mainImg,
             photos: newPhotos,
             phone: newPhone,
             whatsapp: newWhatsapp,
-            description: newDescription
+            description: newDescription,
+            amenities: newAmenities
           };
         }
         return p;
@@ -321,7 +328,6 @@ export default function App() {
         type: newType,
         beds: Number(newBeds),
         baths: Number(newBaths),
-        sqm: Number(newSqm) || 75,
         image: mainImg,
         photos: newPhotos,
         verified: true,
@@ -333,7 +339,7 @@ export default function App() {
         ownerWhatsapp: newWhatsapp || '+260977123456',
         description: newDescription,
         distance: 'Prime secure location in ' + newLocation,
-        amenities: ['Continuous Electricity Backup', 'Borehole Water', 'Secured Perimeter Wall', 'Air Conditioning', 'Modern Kitchen']
+        amenities: newAmenities
       };
 
       const updatedList = [created, ...properties];
@@ -346,6 +352,13 @@ export default function App() {
     setNewLocation('');
     setNewPrice('');
     setNewDescription('');
+    setNewAmenities([
+      'Continuous Electricity Backup',
+      'Borehole Water',
+      'Secured Perimeter Wall',
+      'Air Conditioning',
+      'Modern Kitchen'
+    ]);
     setNewPhotos([
       'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80',
       'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80'
@@ -363,8 +376,8 @@ export default function App() {
     setNewType(p.type);
     setNewBeds(String(p.beds || 2));
     setNewBaths(String(p.baths || 2));
-    setNewSqm(String(p.sqm || 75));
     setNewDescription(p.description || '');
+    setNewAmenities(p.amenities || ['Continuous Electricity Backup', 'Borehole Water', 'Secured Perimeter Wall', 'Air Conditioning', 'Modern Kitchen']);
     const pPhotos = p.photos && p.photos.length > 0 ? p.photos : [p.image];
     setNewPhotos(pPhotos);
     setNewMainImageIndex(0);
@@ -782,7 +795,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Bedrooms</label>
                     <input
@@ -801,14 +814,54 @@ export default function App() {
                       className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c]"
                     />
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Area (sqm)</label>
+                </div>
+
+                {/* Amenities Manager */}
+                <div className="space-y-3 bg-[#f8f9fa] p-6 rounded-3xl border border-[#e4e2e2]">
+                  <label className="block text-xs font-bold text-[#1b1c1c] uppercase tracking-wider">Property Amenities & Features</label>
+                  <div className="flex gap-2">
                     <input
-                      type="number"
-                      value={newSqm}
-                      onChange={(e) => setNewSqm(e.target.value)}
-                      className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c]"
+                      type="text"
+                      value={customAmenityInput}
+                      onChange={(e) => setCustomAmenityInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (customAmenityInput.trim() && !newAmenities.includes(customAmenityInput.trim())) {
+                            setNewAmenities([...newAmenities, customAmenityInput.trim()]);
+                            setCustomAmenityInput('');
+                          }
+                        }
+                      }}
+                      placeholder="e.g. Swimming Pool, Solar Power, Fiber WiFi..."
+                      className="flex-1 bg-white border border-[#e4e2e2] rounded-xl px-4 py-2.5 text-xs font-medium text-[#1b1c1c]"
                     />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (customAmenityInput.trim() && !newAmenities.includes(customAmenityInput.trim())) {
+                          setNewAmenities([...newAmenities, customAmenityInput.trim()]);
+                          setCustomAmenityInput('');
+                        }
+                      }}
+                      className="bg-[#1b1c1c] hover:bg-black text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {newAmenities.map((amenity, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1.5 bg-white border border-[#e4e2e2] px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-700 shadow-xs">
+                        <span>{amenity}</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewAmenities(newAmenities.filter((_, i) => i !== idx))}
+                          className="text-gray-400 hover:text-rose-600 font-bold ml-1 text-sm leading-none"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
                   </div>
                 </div>
 
@@ -1285,7 +1338,7 @@ export default function App() {
             <span>Real Estate Portal © 2026 Zambia. All rights reserved.</span>
           </div>
           <div className="flex items-center gap-6">
-            <span>Admin account: <strong className="text-[#1b1c1c]">admin@tambu.com</strong> / Admin2026</span>
+            <span>Powered by Tambu Trust & Security</span>
           </div>
         </div>
       </footer>
