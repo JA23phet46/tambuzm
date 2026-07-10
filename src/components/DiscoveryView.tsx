@@ -631,14 +631,14 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
             No properties found matching your current filter. Try adjusting your search query or province.
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
             {filteredProperties.map((item) => (
               <div
                 key={item.id}
-                className="bg-white rounded-2xl border border-[#eae8e7] overflow-hidden group shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+                className="w-full bg-white rounded-xl border border-[#eae8e7] overflow-hidden group shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-md transition-all flex flex-col justify-between"
               >
                 <div>
-                  <div className="relative h-44 sm:h-52 overflow-hidden bg-[#eae8e7]">
+                  <div className="relative h-20 xs:h-24 sm:h-32 overflow-hidden bg-[#eae8e7]">
                     <img
                       alt={item.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer"
@@ -652,10 +652,10 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
                           e.stopPropagation();
                           onTogglePropertyVerified?.(item.id, true);
                         } : undefined}
-                        className={`absolute top-3 left-3 w-7 h-7 rounded-full bg-white/95 flex items-center justify-center text-emerald-600 shadow-sm z-10 border border-emerald-100 ${isAdmin ? 'cursor-pointer hover:bg-emerald-50 active:scale-95 transition-all' : ''}`}
+                        className={`absolute top-2 left-2 w-6 h-6 rounded-full bg-white/95 flex items-center justify-center text-emerald-600 shadow-sm z-10 border border-emerald-100/50 ${isAdmin ? 'cursor-pointer hover:bg-emerald-50 active:scale-95 transition-all' : ''}`}
                         title={isAdmin ? 'Click to Remove Verification' : 'Verified Property'}
                       >
-                        <Check className="w-4 h-4 stroke-[4px] text-emerald-650" />
+                        <Check className="w-3.5 h-3.5 stroke-[4px] text-emerald-650" />
                       </div>
                     ) : (
                       isAdmin && (
@@ -664,24 +664,24 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
                             e.stopPropagation();
                             onTogglePropertyVerified?.(item.id, false);
                           }}
-                          className="absolute top-3 left-3 w-7 h-7 rounded-full bg-slate-100/90 hover:bg-emerald-50 flex items-center justify-center text-slate-400 hover:text-emerald-650 shadow-sm z-10 border border-slate-200 cursor-pointer active:scale-95 transition-all"
+                          className="absolute top-2 left-2 w-6 h-6 rounded-full bg-slate-100/90 hover:bg-emerald-50 flex items-center justify-center text-slate-400 hover:text-emerald-650 shadow-sm z-10 border border-slate-200 cursor-pointer active:scale-95 transition-all"
                           title="Click to Verify Property"
                         >
-                          <Check className="w-4 h-4 stroke-[2px]" />
+                          <Check className="w-3.5 h-3.5 stroke-[2px]" />
                         </div>
                       )
                     )}
                     {item.propertyOfTheWeek && (
-                      <div className="absolute top-3 left-12 bg-amber-500 text-white px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider shadow-sm z-10 font-sans">
+                      <div className="absolute top-2 left-10 bg-amber-500 text-white px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider shadow-sm z-10">
                         Spotlight
                       </div>
                     )}
-                    <div className={`absolute bottom-3 left-3 backdrop-blur-md px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider shadow-sm flex items-center gap-1 z-10 ${
+                    <div className={`absolute bottom-2 left-2 backdrop-blur-md px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider shadow-sm flex items-center gap-1 z-10 ${
                       item.available !== false 
                         ? 'bg-[#006c4c]/90 text-white' 
                         : 'bg-[#d97706]/90 text-white'
                     }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${item.available !== false ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+                      <span className={`w-1 h-1 rounded-full ${item.available !== false ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
                       {item.available !== false ? 'Available' : 'Pending'}
                     </div>
                     {isAdmin && onDeleteProperty && (
@@ -690,59 +690,48 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
                           e.stopPropagation();
                           onDeleteProperty(item.id);
                         }}
-                        className="absolute top-3 right-11 w-7 h-7 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center text-red-700 shadow-sm z-10 active:scale-95 transition-all"
+                        className="absolute top-2 right-9 w-6 h-6 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center text-red-700 shadow-sm z-10 active:scale-95 transition-all"
                         title="Super Admin: Delete Listing"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
                     <button
                       onClick={(e) => onToggleSaved(item.id, e)}
-                      className="absolute top-3 right-3 w-7 h-7 rounded-full bg-white/90 flex items-center justify-center text-[#b52330] shadow-sm hover:scale-105 active:scale-95 transition-transform z-10"
+                      className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/90 flex items-center justify-center text-[#b52330] shadow-sm active:scale-95 transition-transform z-10"
                     >
-                      <Heart className={`w-4 h-4 ${savedIds.includes(item.id) ? 'fill-current' : ''}`} />
+                      <Heart className={`w-3.5 h-3.5 ${savedIds.includes(item.id) ? 'fill-current' : ''}`} />
                     </button>
                   </div>
 
-                  <div className="p-4 space-y-2">
-                    <div className="flex justify-between items-start gap-2">
+                  <div className="p-3 space-y-1.5">
+                    <div className="flex justify-between items-start gap-1">
                       <h3 
                         onClick={() => onSelectProperty(item)}
-                        className="font-bold text-sm sm:text-base text-[#1b1c1c] hover:text-[#b52330] transition-colors cursor-pointer line-clamp-1 flex-1"
+                        className="font-semibold text-xs sm:text-sm text-[#1b1c1c] hover:text-[#b52330] transition-colors cursor-pointer line-clamp-1 flex-1"
                       >
                         {item.name}
                       </h3>
-                      <div className="flex items-center gap-1 text-xs font-bold text-[#b52330] shrink-0">
-                        <Star className="w-3.5 h-3.5 fill-current" />
+                      <div className="flex items-center gap-0.5 text-[10px] font-bold text-[#b52330] shrink-0">
+                        <Star className="w-3 h-3 fill-current" />
                         <span>{item.rating && item.rating > 0 ? item.rating : 'New'}</span>
                       </div>
                     </div>
                     
-                    <p className="text-xs text-[#5a403f]/80 flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-[#b52330] shrink-0" />
-                      <span className="line-clamp-1">{item.location}, {item.province}</span>
-                    </p>
+                    <p className="text-[10px] sm:text-xs text-[#5a403f]/80 line-clamp-1">{item.location}</p>
                     
                     {item.distance && (
-                      <div className="flex items-center gap-1 text-[10px] text-[#b52330] font-semibold bg-[#ffdad8]/40 px-2.5 py-1 rounded-md border border-[#e2bebc]/40 w-fit">
-                        <Footprints className="w-3.5 h-3.5 shrink-0" />
+                      <div className="flex items-center gap-1 text-[9px] sm:text-[10px] text-[#b52330] font-semibold bg-[#ffdad8]/40 px-2 py-0.5 rounded-md border border-[#e2bebc]/40 w-fit">
+                        <Footprints className="w-3 h-3 shrink-0" />
                         <span className="truncate">{item.distance}</span>
                       </div>
                     )}
-                  </div>
-                </div>
-
-                <div className="p-4 pt-0 flex justify-between items-center border-t border-[#f5f3f3] mt-2">
-                  <div>
-                    <span className="text-[10px] text-[#5a403f] block uppercase tracking-wider font-mono">Rent / Month</span>
-                    <span className="text-[#b52330] font-black text-sm sm:text-base">
-                      ZMW {formatPrice(item.price)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-[#5a403f] font-medium shrink-0 bg-[#f0eded] px-3 py-1.5 rounded-xl">
-                    <span className="flex items-center gap-1"><Bed className="w-3.5 h-3.5 text-[#b52330]" /> {item.beds}</span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1"><Bath className="w-3.5 h-3.5 text-[#b52330]" /> {item.baths}</span>
+                    
+                    <div className="flex justify-between items-center pt-1.5 border-t border-[#f5f3f3]">
+                      <span className="text-[#b52330] font-bold text-xs sm:text-sm">
+                        ZMW {formatPrice(item.price)}<span className="text-[9px] text-[#5a403f] font-normal">/mo</span>
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
