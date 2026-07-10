@@ -27,8 +27,23 @@ export const PropertyDetailsView: React.FC<PropertyDetailsViewProps> = ({
   onTogglePropertyVerified,
   onDeleteProperty,
 }) => {
+  if (!property) {
+    return (
+      <div className="bg-white rounded-2xl p-12 text-center border border-[#e4e2e2] space-y-4 my-12">
+        <p className="text-sm font-bold text-[#5a403f]">Property details not available.</p>
+        <button 
+          onClick={() => onNavigate('discovery')}
+          className="bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-2.5 px-6 rounded-xl transition-all"
+        >
+          Back to Listings
+        </button>
+      </div>
+    );
+  }
+
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
   const [reviews, setReviews] = useState<any[]>(() => {
+    if (!property?.id) return [];
     try {
       const cached = localStorage.getItem(`tambu_reviews_${property.id}`);
       if (cached) {

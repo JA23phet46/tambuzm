@@ -1153,6 +1153,9 @@ export default function App() {
   // --- Selection and Details handles ---
   const handleSelectProperty = (property: Property) => {
     setSelectedProperty(property);
+    try {
+      localStorage.setItem('tambu_selected_property', JSON.stringify(property));
+    } catch (e) {}
     navigateTo('details');
   };
 
@@ -2177,10 +2180,31 @@ export default function App() {
 
             // 3. Detailed Property Showcase screen
             case 'details':
-              if (!selectedProperty) return null;
+              let activeProperty = selectedProperty;
+              if (!activeProperty) {
+                try {
+                  const saved = localStorage.getItem('tambu_selected_property');
+                  if (saved) {
+                    activeProperty = JSON.parse(saved);
+                  }
+                } catch (e) {}
+              }
+              if (!activeProperty) {
+                return (
+                  <div className="bg-white rounded-2xl p-12 text-center border border-[#e4e2e2] space-y-4 my-12 shadow-sm">
+                    <p className="text-sm font-bold text-[#5a403f]">No property selected or details session expired.</p>
+                    <button 
+                      onClick={() => navigateTo('discovery')}
+                      className="bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-2.5 px-6 rounded-xl transition-all shadow-md"
+                    >
+                      Return to Listings
+                    </button>
+                  </div>
+                );
+              }
               return (
                 <PropertyDetailsView
-                  property={selectedProperty}
+                  property={activeProperty}
                   savedIds={savedIds}
                   isLoggedIn={isLoggedIn}
                   currentUserName={userName || currentUser?.displayName || currentUser?.email?.split('@')[0] || ''}
