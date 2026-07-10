@@ -93,7 +93,7 @@ export const PhotoSelectorView: React.FC<PhotoSelectorViewProps> = ({
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          const MAX_DIM = 2560;
+          const MAX_DIM = 1200;
 
           if (width > height) {
             if (width > MAX_DIM) {
@@ -111,11 +111,13 @@ export const PhotoSelectorView: React.FC<PhotoSelectorViewProps> = ({
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           if (ctx) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(img, 0, 0, width, height);
-            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.98);
+            const optimizedBase64 = canvas.toDataURL('image/jpeg', 0.85);
 
             setCustomPool((prev) => {
-              const updated = [compressedBase64, ...prev].slice(0, 20);
+              const updated = [optimizedBase64, ...prev].slice(0, 20);
               try {
                 localStorage.setItem('tambu_custom_uploads', JSON.stringify(updated));
               } catch (err) {
@@ -125,8 +127,8 @@ export const PhotoSelectorView: React.FC<PhotoSelectorViewProps> = ({
             });
 
             setSelected((prev) => {
-              if (prev.includes(compressedBase64)) return prev;
-              return [...prev, compressedBase64];
+              if (prev.includes(optimizedBase64)) return prev;
+              return [...prev, optimizedBase64];
             });
           }
         };
