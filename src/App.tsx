@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Property, Province, PropertyType } from './types';
 import { INITIAL_PROPERTIES } from './data';
+import { getAllProperties, subscribeToProperties, createPropertyListing, updatePropertyListing, deletePropertyListing } from './firebase';
 
 export default function App() {
   // --- Persistent State ---
@@ -22,6 +23,39 @@ export default function App() {
     }
     return INITIAL_PROPERTIES;
   });
+
+  // Fetch and subscribe to real-time properties from Firestore so listings sync across all devices
+  useEffect(() => {
+    getAllProperties().then(fetched => {
+      if (fetched && fetched.length > 0) {
+        setProperties(prev => {
+          const map = new Map();
+          fetched.forEach(p => map.set(p.id, p));
+          INITIAL_PROPERTIES.forEach(p => {
+            if (!map.has(p.id)) map.set(p.id, p);
+          });
+          return Array.from(map.values());
+        });
+      }
+    });
+
+    const unsubscribe = subscribeToProperties(fetched => {
+      if (fetched && fetched.length > 0) {
+        setProperties(prev => {
+          const map = new Map();
+          fetched.forEach(p => map.set(p.id, p));
+          INITIAL_PROPERTIES.forEach(p => {
+            if (!map.has(p.id)) map.set(p.id, p);
+          });
+          return Array.from(map.values());
+        });
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
 
   const [savedIds, setSavedIds] = useState<string[]>(() => {
     const cached = localStorage.getItem('tambu_saved');
@@ -289,24 +323,25 @@ export default function App() {
     const mainImg = newPhotos[newMainImageIndex] || newPhotos[0];
 
     if (editingId) {
+      const updatedFields = {
+        name: newTitle,
+        location: newLocation,
+        province: newProvince,
+        price: Number(newPrice),
+        type: newType,
+        beds: Number(newBeds),
+        baths: Number(newBaths),
+        image: mainImg,
+        photos: newPhotos,
+        phone: newPhone,
+        whatsapp: newWhatsapp,
+        description: newDescription,
+        amenities: newAmenities
+      };
+      updatePropertyListing(editingId, updatedFields);
       const updated = properties.map(p => {
         if (p.id === editingId) {
-          return {
-            ...p,
-            name: newTitle,
-            location: newLocation,
-            province: newProvince,
-            price: Number(newPrice),
-            type: newType,
-            beds: Number(newBeds),
-            baths: Number(newBaths),
-            image: mainImg,
-            photos: newPhotos,
-            phone: newPhone,
-            whatsapp: newWhatsapp,
-            description: newDescription,
-            amenities: newAmenities
-          };
+          return { ...p, ...updatedFields };
         }
         return p;
       });
@@ -337,6 +372,7 @@ export default function App() {
         amenities: newAmenities
       };
 
+      createPropertyListing(created);
       const updatedList = [created, ...properties];
       setProperties(updatedList);
       showToast('Property listed successfully with multiple photos!');
@@ -383,6 +419,7 @@ export default function App() {
 
   const handleDeleteProperty = (id: string) => {
     if (window.confirm('Are you sure you want to delete this property?')) {
+      deletePropertyListing(id);
       const filtered = properties.filter(p => p.id !== id);
       setProperties(filtered);
       showToast('Property deleted successfully');

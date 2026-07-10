@@ -855,6 +855,38 @@ export async function updatePropertyListing(propertyId: string, fields: Partial<
   }
 }
 
+export async function getAllProperties(): Promise<Property[]> {
+  const path = 'properties';
+  try {
+    const snap = await getDocs(collection(db, path));
+    const list: Property[] = [];
+    snap.forEach(docSnap => {
+      list.push({ id: docSnap.id, ...docSnap.data() } as Property);
+    });
+    return list;
+  } catch (error) {
+    console.warn("Could not fetch properties from Firestore:", error);
+    return [];
+  }
+}
+
+export function subscribeToProperties(callback: (properties: Property[]) => void) {
+  try {
+    return onSnapshot(collection(db, 'properties'), (snapshot) => {
+      const list: Property[] = [];
+      snapshot.forEach(docSnap => {
+        list.push({ id: docSnap.id, ...docSnap.data() } as Property);
+      });
+      callback(list);
+    }, (error) => {
+      console.warn("Properties snapshot error:", error);
+    });
+  } catch (err) {
+    console.warn("Could not subscribe to properties:", err);
+    return () => {};
+  }
+}
+
 // --- SEARCH HISTORY CRUD ---
 export async function addSearchHistory(uid: string, search: SearchHistory): Promise<void> {
   if (!uid || uid.startsWith('demo_') || uid.startsWith('sandbox_') || uid === 'admin_tambu') {
