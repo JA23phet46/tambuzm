@@ -15,14 +15,8 @@ export default function App() {
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const merged = [...parsed];
-          INITIAL_PROPERTIES.forEach(init => {
-            if (!merged.some(p => p.id === init.id)) {
-              merged.push(init);
-            }
-          });
-          return merged;
+        if (Array.isArray(parsed)) {
+          return parsed;
         }
       } catch (e) {}
     }
@@ -106,6 +100,7 @@ export default function App() {
 
   // Toast
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -233,7 +228,7 @@ export default function App() {
             const canvas = document.createElement('canvas');
             let width = img.width;
             let height = img.height;
-            const maxDim = 1600;
+            const maxDim = 1200;
             if (width > height && width > maxDim) {
               height = Math.round((height * maxDim) / width);
               width = maxDim;
@@ -247,7 +242,7 @@ export default function App() {
             if (ctx) {
               ctx.drawImage(img, 0, 0, width, height);
               try {
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
                 newUrls.push(dataUrl);
               } catch (err) {
                 if (event.target?.result) newUrls.push(event.target.result as string);
@@ -434,14 +429,15 @@ export default function App() {
       <header className="bg-white border-b border-[#e4e2e2] sticky top-0 z-40 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <div 
-            onClick={() => { setCurrentPage('discovery'); setSelectedProperty(null); }}
+            onClick={() => { setCurrentPage('discovery'); setSelectedProperty(null); setMobileMenuOpen(false); }}
             className="cursor-pointer"
           >
             <span className="text-2xl font-extrabold tracking-tight text-[#1b1c1c] lowercase">tambu</span>
             <span className="block text-[9px] font-semibold text-gray-400 tracking-widest uppercase">Zambia Real Estate</span>
           </div>
 
-          <nav className="flex items-center gap-2 sm:gap-4">
+          {/* Desktop Nav */}
+          <nav className="hidden md:flex items-center gap-2 sm:gap-4">
             <button
               onClick={() => { setCurrentPage('discovery'); setSelectedProperty(null); }}
               className={`text-xs font-bold px-3.5 py-2.5 rounded-xl transition-all ${currentPage === 'discovery' ? 'bg-[#1b1c1c] text-white' : 'text-gray-600 hover:bg-gray-100'}`}
@@ -476,7 +472,7 @@ export default function App() {
 
             {isLoggedIn ? (
               <div className="flex items-center gap-3 pl-3 border-l border-gray-200">
-                <div className="hidden md:block text-right">
+                <div className="text-right">
                   <div className="text-xs font-bold text-[#1b1c1c]">{userName}</div>
                   <div className="text-[10px] font-medium text-gray-500">{isAdmin ? 'Master Admin' : userEmail}</div>
                 </div>
@@ -498,7 +494,84 @@ export default function App() {
               </button>
             )}
           </nav>
+
+          {/* Mobile Hamburger Button */}
+          <div className="flex md:hidden items-center gap-2">
+            <button
+              onClick={() => { setCurrentPage('saved'); setSelectedProperty(null); }}
+              className="p-2.5 bg-gray-100 rounded-xl text-gray-700 relative"
+            >
+              <Heart className={`w-4 h-4 ${savedIds.length > 0 ? 'text-rose-500 fill-current' : ''}`} />
+              {savedIds.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-[#b52330] text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+                  {savedIds.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-800 transition-all"
+              aria-label="Toggle Menu"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <div className="space-y-1 w-5"><div className="w-full h-0.5 bg-gray-800"></div><div className="w-full h-0.5 bg-gray-800"></div><div className="w-full h-0.5 bg-gray-800"></div></div>}
+            </button>
+          </div>
         </div>
+
+        {/* Mobile Dropdown Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden bg-white border-b border-[#e4e2e2] px-4 py-4 space-y-3 animate-fade-in shadow-xl">
+            <button
+              onClick={() => { setCurrentPage('discovery'); setSelectedProperty(null); setMobileMenuOpen(false); }}
+              className={`w-full text-left text-xs font-bold px-4 py-3 rounded-xl transition-all ${currentPage === 'discovery' ? 'bg-[#1b1c1c] text-white' : 'bg-gray-50 text-gray-700'}`}
+            >
+              Listings
+            </button>
+            <button
+              onClick={() => { setCurrentPage('saved'); setSelectedProperty(null); setMobileMenuOpen(false); }}
+              className={`w-full text-left text-xs font-bold px-4 py-3 rounded-xl transition-all flex items-center justify-between ${currentPage === 'saved' ? 'bg-[#1b1c1c] text-white' : 'bg-gray-50 text-gray-700'}`}
+            >
+              <span>Saved Properties</span>
+              <span className="bg-rose-500 text-white px-2 py-0.5 rounded-md text-[10px]">{savedIds.length}</span>
+            </button>
+            <button
+              onClick={() => { setCurrentPage('contact'); setSelectedProperty(null); setMobileMenuOpen(false); }}
+              className={`w-full text-left text-xs font-bold px-4 py-3 rounded-xl transition-all ${currentPage === 'contact' ? 'bg-[#1b1c1c] text-white' : 'bg-gray-50 text-gray-700'}`}
+            >
+              Contact Us
+            </button>
+            {isAdmin && (
+              <button
+                onClick={() => { setEditingId(null); setCurrentPage('admin-dashboard'); setMobileMenuOpen(false); }}
+                className={`w-full text-left text-xs font-bold px-4 py-3 rounded-xl transition-all flex items-center gap-2 ${currentPage === 'admin-dashboard' ? 'bg-[#b52330] text-white' : 'bg-rose-50 text-[#b52330]'}`}
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                <span>Admin Dashboard</span>
+              </button>
+            )}
+            {isLoggedIn ? (
+              <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-bold text-[#1b1c1c]">{userName}</div>
+                  <div className="text-[10px] text-gray-500">{isAdmin ? 'Master Admin' : userEmail}</div>
+                </div>
+                <button
+                  onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
+                  className="bg-rose-50 text-rose-600 px-3 py-2 rounded-xl text-xs font-bold"
+                >
+                  Log Out
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setCurrentPage('auth'); setMobileMenuOpen(false); }}
+                className="w-full bg-[#b52330] text-white text-xs font-bold py-3 rounded-xl shadow-md text-center"
+              >
+                Login / Sign Up
+              </button>
+            )}
+          </div>
+        )}
       </header>
 
       {/* Main Content Area */}
