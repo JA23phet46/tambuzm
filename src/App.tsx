@@ -226,7 +226,7 @@ export default function App() {
             const canvas = document.createElement('canvas');
             let width = img.width;
             let height = img.height;
-            const maxDim = 1000;
+            const maxDim = 1600;
             if (width > height && width > maxDim) {
               height = Math.round((height * maxDim) / width);
               width = maxDim;
@@ -240,7 +240,7 @@ export default function App() {
             if (ctx) {
               ctx.drawImage(img, 0, 0, width, height);
               try {
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
                 newUrls.push(dataUrl);
               } catch (err) {
                 if (event.target?.result) newUrls.push(event.target.result as string);
@@ -1095,17 +1095,19 @@ export default function App() {
 
         {/* VIEW: DISCOVERY & SAVED LISTINGS */}
         {(currentPage === 'discovery' || currentPage === 'saved') && (
-          <div className="space-y-8">
+          <div className="space-y-6 sm:space-y-8">
             {/* Hero banner */}
-            <div className="bg-gradient-to-r from-[#1b1c1c] to-[#3a3b3c] text-white p-8 sm:p-12 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-8">
-              <div className="space-y-3 max-w-xl text-center md:text-left">
-                <span className="text-xs font-bold bg-white/10 px-3 py-1.5 rounded-xl text-rose-400 uppercase tracking-widest">
+            <div className="bg-gradient-to-br from-[#1b1c1c] via-[#2c2d2e] to-[#1b1c1c] text-white p-6 sm:p-12 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 sm:gap-8 relative overflow-hidden border border-white/10">
+              <div className="absolute -right-12 -top-12 w-64 h-64 bg-[#b52330]/20 rounded-full blur-3xl pointer-events-none" />
+              <div className="space-y-3 max-w-xl text-center md:text-left relative z-10">
+                <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-full text-rose-400 text-[11px] font-bold uppercase tracking-wider">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   Zambia's #1 Real Estate Portal
-                </span>
-                <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
+                </div>
+                <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight leading-tight">
                   {currentPage === 'saved' ? 'Your Saved Favorites' : 'Find Your Perfect Home in Zambia'}
                 </h2>
-                <p className="text-xs sm:text-sm text-gray-300">
+                <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
                   {currentPage === 'saved' 
                     ? 'Review and manage your shortlisted properties across Lusaka, Copperbelt, and Livingstone.'
                     : 'Verified apartments, houses, and student housing with reliable electricity and water backups.'}
@@ -1113,9 +1115,9 @@ export default function App() {
               </div>
 
               {!isLoggedIn && currentPage === 'discovery' && (
-                <div className="bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/10 text-center max-w-sm w-full">
-                  <h3 className="text-sm font-bold text-white mb-1">Create an Account</h3>
-                  <p className="text-[11px] text-gray-300 mb-4">Save favorites and connect instantly with home owners.</p>
+                <div className="bg-white/15 backdrop-blur-md p-5 sm:p-6 rounded-2xl border border-white/20 text-center max-w-sm w-full relative z-10 shadow-lg">
+                  <h3 className="text-xs sm:text-sm font-bold text-white mb-1">Create an Account</h3>
+                  <p className="text-[11px] text-gray-300 mb-3.5">Save favorites and connect instantly with home owners.</p>
                   <button
                     onClick={() => setCurrentPage('auth')}
                     className="w-full bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-3 rounded-xl shadow-md transition-all"
