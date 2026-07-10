@@ -911,6 +911,36 @@ export default function App() {
     };
   }, []);
 
+  // Cross-device/cross-tab storage sync effect for instant PC-mobile synchronization
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'tambu_properties' || e.key === 'tambu_local_properties') {
+        const cached = localStorage.getItem('tambu_properties');
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setProperties(parsed);
+            }
+          } catch (_) {}
+        }
+      }
+      if (e.key === 'tambu_selected_property') {
+        const cached = localStorage.getItem('tambu_selected_property');
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (parsed) {
+              setSelectedProperty(parsed);
+            }
+          } catch (_) {}
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
   // Real-time Rent payments database synchronization
   useEffect(() => {
     if (!isLoggedIn) {
@@ -2188,6 +2218,9 @@ export default function App() {
                     activeProperty = JSON.parse(saved);
                   }
                 } catch (e) {}
+              }
+              if (!activeProperty && properties && properties.length > 0) {
+                activeProperty = properties[0];
               }
               if (!activeProperty) {
                 return (

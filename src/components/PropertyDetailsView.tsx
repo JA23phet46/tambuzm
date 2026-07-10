@@ -16,7 +16,7 @@ interface PropertyDetailsViewProps {
 }
 
 export const PropertyDetailsView: React.FC<PropertyDetailsViewProps> = ({
-  property,
+  property: prop,
   savedIds,
   isLoggedIn,
   currentUserName = '',
@@ -27,19 +27,34 @@ export const PropertyDetailsView: React.FC<PropertyDetailsViewProps> = ({
   onTogglePropertyVerified,
   onDeleteProperty,
 }) => {
-  if (!property) {
+  if (!prop) {
     return (
-      <div className="bg-white rounded-2xl p-12 text-center border border-[#e4e2e2] space-y-4 my-12">
+      <div className="bg-white rounded-2xl p-12 text-center border border-[#e4e2e2] space-y-4 my-12 shadow-sm">
         <p className="text-sm font-bold text-[#5a403f]">Property details not available.</p>
         <button 
           onClick={() => onNavigate('discovery')}
-          className="bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-2.5 px-6 rounded-xl transition-all"
+          className="bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-2.5 px-6 rounded-xl transition-all shadow-md"
         >
           Back to Listings
         </button>
       </div>
     );
   }
+
+  const property = {
+    ...prop,
+    amenities: prop.amenities || [],
+    photos: (prop.photos && prop.photos.length > 0) ? prop.photos : [prop.image],
+    rating: prop.rating || 4.5,
+    reviewsCount: prop.reviewsCount || 0,
+    price: prop.price ?? 0,
+    beds: prop.beds ?? 1,
+    baths: prop.baths ?? 1,
+    sqm: prop.sqm ?? 50,
+    distance: prop.distance || 'Central location',
+    ownerName: prop.ownerName || 'Tambu Verified Owner',
+    ownerImage: prop.ownerImage || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDlU9YJ8M3MunDAymNRXsgQKqX6eL-cGOG6Mnlq9mL22IDirRalmeJjnH_qrPx9CXnb92hTMGmV33HoSi4GI-mSHSUgiILXxRod3ERkAumQfhAYQj2JTz9tqKMIUkc8Y7JGz7n_0cTGh6_PKvye02YzqDFSF1bDf6Ory0pyb6SHi68d_2_MatN0ORfM8LFzxHFMDVAYa1iERf-cyHf0wwiZAkj8twUDg4LaIT7xYpz8hwPf7kX1dozNTkc6NDbBYN5HaBV_yJYkVp0',
+  };
 
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
   const [reviews, setReviews] = useState<any[]>(() => {
