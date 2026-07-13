@@ -339,3 +339,4 @@ export async function deletePropertyFromSupabase(propertyId: string): Promise<vo
     console.error('Error in deletePropertyFromSupabase:', err);
   }
 }
+

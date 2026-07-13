@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { Property, Province, PropertyType } from './types';
 import { INITIAL_PROPERTIES } from './data';
-import { getPropertiesFromSupabase, savePropertyToSupabase, updatePropertyInSupabase, deletePropertyFromSupabase } from './supabase';
+import { getPropertiesFromSupabase, savePropertyToSupabase, updatePropertyInSupabase, deletePropertyFromSupabase, isSupabaseConfigured } from './supabase';
 
 export default function App() {
   // --- Persistent State ---
@@ -114,11 +114,6 @@ export default function App() {
 
   const [newPhone, setNewPhone] = useState('+260977123456');
   const [newWhatsapp, setNewWhatsapp] = useState('+260977123456');
-
-  // Contact Us form state
-  const [contactName, setContactName] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
-  const [contactMessage, setContactMessage] = useState('');
 
   // Toast
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -414,19 +409,6 @@ export default function App() {
     }
   };
 
-  const handleContactSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!contactName || !contactEmail || !contactMessage) {
-      showToast('Please fill in all contact fields', 'error');
-      return;
-    }
-    showToast('Message sent successfully! Our team will contact you shortly.');
-    setContactName('');
-    setContactEmail('');
-    setContactMessage('');
-    setCurrentPage('discovery');
-  };
-
   // Filtered properties for discovery
   const filteredProperties = properties.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -697,87 +679,44 @@ export default function App() {
 
         {/* VIEW: CONTACT US */}
         {currentPage === 'contact' && (
-          <div className="max-w-3xl mx-auto space-y-8 animate-fade-in pb-16">
-            <div className="bg-[#1b1c1c] text-white p-8 sm:p-12 rounded-3xl shadow-xl">
-              <h2 className="text-3xl font-extrabold tracking-tight">Contact tambu Support</h2>
+          <div className="max-w-xl mx-auto space-y-8 animate-fade-in pb-16">
+            <div className="bg-[#1b1c1c] text-white p-8 sm:p-12 rounded-3xl shadow-xl text-center">
+              <h2 className="text-3xl font-extrabold tracking-tight">Contact Us</h2>
               <p className="text-xs sm:text-sm text-gray-300 mt-2">
-                Have questions about listing a property, rentals, or technical support? Our Lusaka-based support team is here to help 24/7.
+                Get in touch with us directly via phone call or WhatsApp.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-3xl border border-[#e4e2e2] shadow-sm text-center space-y-3">
-                <div className="w-12 h-12 bg-rose-50 text-[#b52330] rounded-2xl flex items-center justify-center mx-auto">
-                  <PhoneCall className="w-6 h-6" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <a
+                href="tel:+260974661185"
+                className="bg-white p-8 rounded-3xl border border-[#e4e2e2] shadow-sm hover:border-[#b52330] hover:shadow-md transition-all text-center space-y-4 group block"
+              >
+                <div className="w-14 h-14 bg-rose-50 text-[#b52330] rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                  <Phone className="w-7 h-7" />
                 </div>
-                <h3 className="text-sm font-bold text-[#1b1c1c]">Call Us</h3>
-                <p className="text-xs text-gray-500">+260 977 123 456<br />+260 966 789 012</p>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-[#e4e2e2] shadow-sm text-center space-y-3">
-                <div className="w-12 h-12 bg-rose-50 text-[#b52330] rounded-2xl flex items-center justify-center mx-auto">
-                  <Mail className="w-6 h-6" />
-                </div>
-                <h3 className="text-sm font-bold text-[#1b1c1c]">Email Support</h3>
-                <p className="text-xs text-gray-500">support@tambu.co.zm<br />admin@tambu.com</p>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-[#e4e2e2] shadow-sm text-center space-y-3">
-                <div className="w-12 h-12 bg-rose-50 text-[#b52330] rounded-2xl flex items-center justify-center mx-auto">
-                  <Building className="w-6 h-6" />
-                </div>
-                <h3 className="text-sm font-bold text-[#1b1c1c]">Head Office</h3>
-                <p className="text-xs text-gray-500">Cairo Road, CBD<br />Lusaka, Zambia</p>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-3xl p-8 sm:p-10 border border-[#e4e2e2] shadow-xl">
-              <h3 className="text-lg font-bold text-[#1b1c1c] mb-6">Send Us a Message</h3>
-              <form onSubmit={handleContactSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Your Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={contactName}
-                      onChange={(e) => setContactName(e.target.value)}
-                      placeholder="e.g. Chileshe Mwewa"
-                      className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Email Address</label>
-                    <input
-                      type="email"
-                      required
-                      value={contactEmail}
-                      onChange={(e) => setContactEmail(e.target.value)}
-                      placeholder="e.g. chileshe@gmail.com"
-                      className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl px-4 py-3 text-xs font-medium text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
-                    />
-                  </div>
-                </div>
-
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Message / Inquiry</label>
-                  <textarea
-                    rows={5}
-                    required
-                    value={contactMessage}
-                    onChange={(e) => setContactMessage(e.target.value)}
-                    placeholder="How can we assist you with your property search or listing?"
-                    className="w-full bg-[#f8f9fa] border border-[#e4e2e2] rounded-xl p-4 text-xs font-medium text-[#1b1c1c] focus:outline-none focus:border-[#b52330]"
-                  ></textarea>
+                  <h3 className="text-base font-bold text-[#1b1c1c]">Call Us</h3>
+                  <p className="text-sm font-semibold text-gray-600 mt-1">+260 974 661 185</p>
                 </div>
+                <span className="inline-block text-xs font-bold text-[#b52330]">Tap to call &rarr;</span>
+              </a>
 
-                <button
-                  type="submit"
-                  className="w-full bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-4 rounded-xl shadow-md transition-all"
-                >
-                  Submit Inquiry
-                </button>
-              </form>
+              <a
+                href="https://wa.me/260974661185"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-white p-8 rounded-3xl border border-[#e4e2e2] shadow-sm hover:border-emerald-500 hover:shadow-md transition-all text-center space-y-4 group block"
+              >
+                <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                  <MessageSquare className="w-7 h-7" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#1b1c1c]">WhatsApp</h3>
+                  <p className="text-sm font-semibold text-gray-600 mt-1">+260 974 661 185</p>
+                </div>
+                <span className="inline-block text-xs font-bold text-emerald-600">Tap to chat &rarr;</span>
+              </a>
             </div>
           </div>
         )}
@@ -811,6 +750,17 @@ export default function App() {
                 <Plus className="w-4 h-4" />
                 <span>Create New Listing Form</span>
               </button>
+            </div>
+
+            {/* Supabase Status Banner */}
+            <div className={`p-5 rounded-2xl border text-xs flex items-center justify-between shadow-sm ${isSupabaseConfigured() ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-3 h-3 rounded-full ${isSupabaseConfigured() ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                <div>
+                  <span className="font-bold">{isSupabaseConfigured() ? 'Supabase Cloud Database Connected: ' : 'Local Cache Mode (Supabase Not Connected): '}</span>
+                  <span>{isSupabaseConfigured() ? 'Listings are syncing across all devices in real-time.' : 'Listings are currently saving to local browser storage only. To make items show on all devices after posting on GitHub/production, add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your GitHub repository secrets and redeploy.'}</span>
+                </div>
+              </div>
             </div>
 
             {/* Add / Edit Property Form with Multiple Image Upload */}
