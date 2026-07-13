@@ -51,13 +51,51 @@ const supabaseAnonKey = rawAnonKey;
 
 let supabaseInstance: SupabaseClient | null = null;
 
+export function getCustomSupabaseConfig() {
+  try {
+    const url = localStorage.getItem('tambu_custom_supabase_url');
+    const key = localStorage.getItem('tambu_custom_supabase_key');
+    if (url && key) {
+      return { url: url.trim(), key: key.trim() };
+    }
+  } catch (e) {}
+  return null;
+}
+
+export function saveCustomSupabaseConfig(url: string, key: string) {
+  try {
+    localStorage.setItem('tambu_custom_supabase_url', url.trim());
+    localStorage.setItem('tambu_custom_supabase_key', key.trim());
+    supabaseInstance = null;
+  } catch (e) {}
+}
+
+export function clearCustomSupabaseConfig() {
+  try {
+    localStorage.removeItem('tambu_custom_supabase_url');
+    localStorage.removeItem('tambu_custom_supabase_key');
+    supabaseInstance = null;
+  } catch (e) {}
+}
+
 export function getSupabaseClient(): SupabaseClient | null {
-  if (!supabaseUrl || !supabaseAnonKey) {
+  let url = supabaseUrl;
+  let key = supabaseAnonKey;
+
+  if (!url || !key) {
+    const custom = getCustomSupabaseConfig();
+    if (custom) {
+      url = custom.url;
+      key = custom.key;
+    }
+  }
+
+  if (!url || !key) {
     return null;
   }
   if (!supabaseInstance) {
     try {
-      supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
+      supabaseInstance = createClient(url, key);
     } catch (e) {
       console.error('Failed to initialize Supabase client:', e);
     }
@@ -66,7 +104,9 @@ export function getSupabaseClient(): SupabaseClient | null {
 }
 
 export function isSupabaseConfigured(): boolean {
-  return !!supabaseUrl && !!supabaseAnonKey;
+  if (supabaseUrl && supabaseAnonKey) return true;
+  const custom = getCustomSupabaseConfig();
+  return !!(custom && custom.url && custom.key);
 }
 
 /**

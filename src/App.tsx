@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { Property, Province, PropertyType } from './types';
 import { INITIAL_PROPERTIES } from './data';
-import { getPropertiesFromSupabase, savePropertyToSupabase, updatePropertyInSupabase, deletePropertyFromSupabase, isSupabaseConfigured } from './supabase';
+import { getPropertiesFromSupabase, savePropertyToSupabase, updatePropertyInSupabase, deletePropertyFromSupabase, isSupabaseConfigured, saveCustomSupabaseConfig, clearCustomSupabaseConfig, getCustomSupabaseConfig } from './supabase';
 
 export default function App() {
   // --- Persistent State ---
@@ -114,6 +114,11 @@ export default function App() {
   // Toast
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Supabase connection modal state
+  const [showSupabaseModal, setShowSupabaseModal] = useState(false);
+  const [customSupabaseUrl, setCustomSupabaseUrl] = useState('');
+  const [customSupabaseKey, setCustomSupabaseKey] = useState('');
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -743,15 +748,98 @@ export default function App() {
             </div>
 
             {/* Supabase Status Banner */}
-            <div className={`p-5 rounded-2xl border text-xs flex items-center justify-between shadow-sm ${isSupabaseConfigured() ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
+            <div className={`p-5 rounded-2xl border text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm ${isSupabaseConfigured() ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
               <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${isSupabaseConfigured() ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                <div className={`w-3 h-3 rounded-full shrink-0 ${isSupabaseConfigured() ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
                 <div>
                   <span className="font-bold">{isSupabaseConfigured() ? 'Supabase Cloud Database Connected: ' : 'Local Cache Mode (Supabase Not Connected): '}</span>
-                  <span>{isSupabaseConfigured() ? 'Listings are syncing across all devices in real-time.' : 'Listings are currently saving to local browser storage only. To make items show on all devices after posting on GitHub/production, add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your GitHub repository secrets and redeploy.'}</span>
+                  <span>{isSupabaseConfigured() ? 'Listings are syncing across all devices in real-time.' : 'Listings are currently saving to local browser storage only. Click "Connect Supabase" to link your database keys instantly.'}</span>
                 </div>
               </div>
+              <button
+                onClick={() => {
+                  const current = getCustomSupabaseConfig();
+                  if (current) {
+                    setCustomSupabaseUrl(current.url);
+                    setCustomSupabaseKey(current.key);
+                  }
+                  setShowSupabaseModal(true);
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${isSupabaseConfigured() ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-amber-600 hover:bg-amber-700 text-white shadow-md'}`}
+              >
+                {isSupabaseConfigured() ? 'Manage Supabase Keys' : 'Connect Supabase Now'}
+              </button>
             </div>
+
+            {/* Supabase Connection Modal */}
+            {showSupabaseModal && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-gray-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-gray-900">Configure Supabase Database</h3>
+                    <button
+                      onClick={() => setShowSupabaseModal(false)}
+                      className="text-gray-400 hover:text-gray-600 p-1"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-600 mb-6 leading-relaxed">
+                    Enter your Supabase Project URL and Anon (Public) Key below. Once connected, all property listings and database updates will sync directly to your Supabase cloud database instead of local storage.
+                  </p>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Supabase URL</label>
+                      <input
+                        type="text"
+                        placeholder="https://your-project-id.supabase.co"
+                        value={customSupabaseUrl}
+                        onChange={(e) => setCustomSupabaseUrl(e.target.value)}
+                        className="w-full text-xs px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#b52330]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Supabase Anon Key</label>
+                      <input
+                        type="password"
+                        placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                        value={customSupabaseKey}
+                        onChange={(e) => setCustomSupabaseKey(e.target.value)}
+                        className="w-full text-xs px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#b52330]"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
+                    <button
+                      onClick={() => {
+                        clearCustomSupabaseConfig();
+                        setCustomSupabaseUrl('');
+                        setCustomSupabaseKey('');
+                        setShowSupabaseModal(false);
+                        window.location.reload();
+                      }}
+                      className="px-4 py-2.5 rounded-xl text-xs font-bold text-red-600 hover:bg-red-50 transition-all"
+                    >
+                      Disconnect / Clear
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (customSupabaseUrl && customSupabaseKey) {
+                          saveCustomSupabaseConfig(customSupabaseUrl, customSupabaseKey);
+                          setShowSupabaseModal(false);
+                          window.location.reload();
+                        } else {
+                          alert('Please enter both Supabase URL and Anon Key.');
+                        }
+                      }}
+                      className="bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow-lg transition-all"
+                    >
+                      Save & Connect
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Add / Edit Property Form with Multiple Image Upload */}
             <div className="bg-white rounded-3xl p-8 sm:p-10 border border-[#e4e2e2] shadow-xl">
