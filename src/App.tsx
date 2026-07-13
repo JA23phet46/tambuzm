@@ -105,11 +105,7 @@ export default function App() {
   const [customAmenityInput, setCustomAmenityInput] = useState('');
   
   // Multiple photos state
-  const [newPhotos, setNewPhotos] = useState<string[]>([
-    'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80',
-    'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80',
-    'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80'
-  ]);
+  const [newPhotos, setNewPhotos] = useState<string[]>([]);
   const [newMainImageIndex, setNewMainImageIndex] = useState(0);
 
   const [newPhone, setNewPhone] = useState('+260977123456');
@@ -373,10 +369,7 @@ export default function App() {
       'Air Conditioning',
       'Modern Kitchen'
     ]);
-    setNewPhotos([
-      'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80'
-    ]);
+    setNewPhotos([]);
     setNewMainImageIndex(0);
     setCurrentPage('admin-dashboard');
   };
@@ -739,10 +732,7 @@ export default function App() {
                   setNewLocation('');
                   setNewPrice('');
                   setNewDescription('');
-                  setNewPhotos([
-                    'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80',
-                    'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80'
-                  ]);
+                  setNewPhotos([]);
                   setNewMainImageIndex(0);
                 }}
                 className="bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold px-6 py-3.5 rounded-xl shadow-lg transition-all flex items-center gap-2 shrink-0"
