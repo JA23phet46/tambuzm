@@ -694,6 +694,34 @@ app.get('/flutterwave-mock-payment', (req, res) => {
 });
 
 
+// Serve runtime Supabase credentials from server-side environment variables
+app.get('/api/config/supabase', (req, res) => {
+  let rawUrl = (process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
+  let rawAnonKey = (process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
+
+  if (rawUrl) {
+    const supabaseCoMatch = rawUrl.match(/^(https?:\/\/[a-zA-Z0-9\-]+\.supabase\.[a-z]+)/i);
+    if (supabaseCoMatch) {
+      rawUrl = supabaseCoMatch[1];
+    } else {
+      if (rawUrl.endsWith('/')) {
+        rawUrl = rawUrl.slice(0, -1);
+      }
+      if (rawUrl.endsWith('/rest/v1')) {
+        rawUrl = rawUrl.substring(0, rawUrl.length - 8);
+      } else if (rawUrl.endsWith('/rest/v1/')) {
+        rawUrl = rawUrl.substring(0, rawUrl.length - 9);
+      }
+    }
+  }
+
+  res.json({
+    supabaseUrl: rawUrl,
+    supabaseAnonKey: rawAnonKey
+  });
+});
+
+
 // Handle secure Supabase Google OAuth Callback in standard Popups (sandboxed compliance)
 app.get(['/auth/callback', '/auth/callback/'], (req, res) => {
   let rawUrl = (process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();

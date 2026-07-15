@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { Property, Province, PropertyType } from './types';
 import { INITIAL_PROPERTIES } from './data';
-import { getPropertiesFromSupabase, savePropertyToSupabase, updatePropertyInSupabase, deletePropertyFromSupabase, isSupabaseConfigured, saveCustomSupabaseConfig, clearCustomSupabaseConfig, getCustomSupabaseConfig } from './supabase';
+import { getPropertiesFromSupabase, savePropertyToSupabase, updatePropertyInSupabase, deletePropertyFromSupabase, isSupabaseConfigured, saveCustomSupabaseConfig, clearCustomSupabaseConfig, getCustomSupabaseConfig, testSupabaseConnection } from './supabase';
 
 export default function App() {
   // --- Persistent State ---
@@ -28,7 +28,7 @@ export default function App() {
   useEffect(() => {
     async function loadProperties() {
       const fetched = await getPropertiesFromSupabase();
-      if (fetched && fetched.length > 0) {
+      if (fetched) {
         setProperties(prev => {
           const map = new Map();
           fetched.forEach(p => map.set(p.id, p));
@@ -119,11 +119,63 @@ export default function App() {
   const [showSupabaseModal, setShowSupabaseModal] = useState(false);
   const [customSupabaseUrl, setCustomSupabaseUrl] = useState('');
   const [customSupabaseKey, setCustomSupabaseKey] = useState('');
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isSavingListing, setIsSavingListing] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
   };
+
+  // Fetch runtime Supabase environment config from the server-side proxy on mount and test connection
+  useEffect(() => {
+    async function fetchServerConfigAndTest() {
+      try {
+        const res = await fetch('/api/config/supabase');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.supabaseUrl && data.supabaseAnonKey) {
+            localStorage.setItem('tambu_server_supabase_url', data.supabaseUrl);
+            localStorage.setItem('tambu_server_supabase_key', data.supabaseAnonKey);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load server environment variables:', e);
+      }
+      
+      const test = await testSupabaseConnection();
+      if (!test.success) {
+        console.warn('Initial Supabase connection failed:', test.error);
+      } else {
+        console.log('Supabase Cloud Database verified successfully.');
+      }
+    }
+    fetchServerConfigAndTest();
+  }, []);
+
+  const runConnectionTest = async () => {
+    setConnectionStatus('testing');
+    setConnectionError(null);
+    try {
+      const result = await testSupabaseConnection();
+      if (result.success) {
+        setConnectionStatus('success');
+      } else {
+        setConnectionStatus('error');
+        setConnectionError(result.error || 'Unknown error');
+      }
+    } catch (e: any) {
+      setConnectionStatus('error');
+      setConnectionError(e.message || String(e));
+    }
+  };
+
+  useEffect(() => {
+    if (showSupabaseModal) {
+      runConnectionTest();
+    }
+  }, [showSupabaseModal]);
 
   // Sync to localStorage
   useEffect(() => {
@@ -293,7 +345,7 @@ export default function App() {
     }
   };
 
-  const handleSaveProperty = (e: React.FormEvent) => {
+  const handleSaveProperty = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAdmin) {
       showToast('Only the master administrator can list properties.', 'error');
@@ -305,78 +357,91 @@ export default function App() {
     }
 
     const mainImg = newPhotos[newMainImageIndex] || newPhotos[0];
+    setIsSavingListing(true);
 
-    if (editingId) {
-      const updatedFields = {
-        name: newTitle,
-        location: newLocation,
-        province: newProvince,
-        price: Number(newPrice),
-        type: newType,
-        beds: Number(newBeds),
-        baths: Number(newBaths),
-        image: mainImg,
-        photos: newPhotos,
-        phone: newPhone,
-        whatsapp: newWhatsapp,
-        description: newDescription,
-        amenities: newAmenities
-      };
-      updatePropertyInSupabase(editingId, updatedFields);
-      const updated = properties.map(p => {
-        if (p.id === editingId) {
-          return { ...p, ...updatedFields };
+    try {
+      if (editingId) {
+        const updatedFields = {
+          name: newTitle,
+          location: newLocation,
+          province: newProvince,
+          price: Number(newPrice),
+          type: newType,
+          beds: Number(newBeds),
+          baths: Number(newBaths),
+          image: mainImg,
+          photos: newPhotos,
+          phone: newPhone,
+          whatsapp: newWhatsapp,
+          description: newDescription,
+          amenities: newAmenities
+        };
+        await updatePropertyInSupabase(editingId, updatedFields);
+        const updated = properties.map(p => {
+          if (p.id === editingId) {
+            return { ...p, ...updatedFields };
+          }
+          return p;
+        });
+        setProperties(updated);
+        showToast('Property updated successfully!');
+        setEditingId(null);
+      } else {
+        const created: Property = {
+          id: 'prop_' + Date.now(),
+          name: newTitle,
+          location: newLocation,
+          province: newProvince,
+          price: Number(newPrice),
+          type: newType,
+          beds: Number(newBeds),
+          baths: Number(newBaths),
+          image: mainImg,
+          photos: newPhotos,
+          verified: true,
+          featured: true,
+          rating: 5.0,
+          reviewsCount: 1,
+          ownerName: 'Tambu Master Admin',
+          ownerPhone: newPhone || '+260977123456',
+          ownerWhatsapp: newWhatsapp || '+260977123456',
+          description: newDescription,
+          distance: 'Prime secure location in ' + newLocation,
+          amenities: newAmenities
+        };
+
+        await savePropertyToSupabase(created);
+        const updatedList = [created, ...properties];
+        setProperties(updatedList);
+        
+        if (isSupabaseConfigured()) {
+          showToast('Property listed & synced to cloud database successfully!');
+        } else {
+          showToast('Property listed successfully! (Saved to offline local storage).');
         }
-        return p;
-      });
-      setProperties(updated);
-      showToast('Property updated successfully!');
-      setEditingId(null);
-    } else {
-      const created: Property = {
-        id: 'prop_' + Date.now(),
-        name: newTitle,
-        location: newLocation,
-        province: newProvince,
-        price: Number(newPrice),
-        type: newType,
-        beds: Number(newBeds),
-        baths: Number(newBaths),
-        image: mainImg,
-        photos: newPhotos,
-        verified: true,
-        featured: true,
-        rating: 5.0,
-        reviewsCount: 1,
-        ownerName: 'Tambu Master Admin',
-        ownerPhone: newPhone || '+260977123456',
-        ownerWhatsapp: newWhatsapp || '+260977123456',
-        description: newDescription,
-        distance: 'Prime secure location in ' + newLocation,
-        amenities: newAmenities
-      };
+      }
 
-      savePropertyToSupabase(created);
-      const updatedList = [created, ...properties];
-      setProperties(updatedList);
-      showToast('Property listed successfully with multiple photos!');
+      // Reset form
+      setNewTitle('');
+      setNewLocation('');
+      setNewPrice('');
+      setNewDescription('');
+      setNewAmenities([
+        'Continuous Electricity Backup',
+        'Borehole Water',
+        'Secured Perimeter Wall',
+        'Air Conditioning',
+        'Modern Kitchen'
+      ]);
+      setNewPhotos([]);
+      setNewMainImageIndex(0);
+      setCurrentPage('admin-dashboard');
+    } catch (err: any) {
+      console.error('Error saving property:', err);
+      showToast('Error listing property: ' + (err.message || String(err)), 'error');
+    } finally {
+      setIsSavingListing(false);
     }
-
-    // Reset form
-    setNewTitle('');
-    setNewLocation('');
-    setNewPrice('');
-    setNewDescription('');
-    setNewAmenities([
-      'Continuous Electricity Backup',
-      'Borehole Water',
-      'Secured Perimeter Wall',
-      'Air Conditioning',
-      'Modern Kitchen'
-    ]);
-    setNewPhotos([]);
-    setNewMainImageIndex(0);
-    setCurrentPage('admin-dashboard');
   };
 
   const handleStartEdit = (p: Property) => {
@@ -398,12 +463,16 @@ export default function App() {
     setCurrentPage('admin-dashboard');
   };
 
-  const handleDeleteProperty = (id: string) => {
+  const handleDeleteProperty = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this property?')) {
-      deletePropertyFromSupabase(id);
-      const filtered = properties.filter(p => p.id !== id);
-      setProperties(filtered);
-      showToast('Property deleted successfully');
+      try {
+        await deletePropertyFromSupabase(id);
+        const filtered = properties.filter(p => p.id !== id);
+        setProperties(filtered);
+        showToast('Property deleted successfully');
+      } catch (e: any) {
+        showToast('Failed to delete property: ' + (e.message || String(e)), 'error');
+      }
     }
   };
 
@@ -759,9 +828,14 @@ export default function App() {
               <button
                 onClick={() => {
                   const current = getCustomSupabaseConfig();
-                  if (current) {
+                  if (current && current.url) {
                     setCustomSupabaseUrl(current.url);
                     setCustomSupabaseKey(current.key);
+                  } else {
+                    const sUrl = localStorage.getItem('tambu_server_supabase_url') || '';
+                    const sKey = localStorage.getItem('tambu_server_supabase_key') || '';
+                    setCustomSupabaseUrl(sUrl);
+                    setCustomSupabaseKey(sKey);
                   }
                   setShowSupabaseModal(true);
                 }}
@@ -774,7 +848,7 @@ export default function App() {
             {/* Supabase Connection Modal */}
             {showSupabaseModal && (
               <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-gray-100">
+                <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-bold text-gray-900">Configure Supabase Database</h3>
                     <button
@@ -787,6 +861,99 @@ export default function App() {
                   <p className="text-xs text-gray-600 mb-6 leading-relaxed">
                     Enter your Supabase Project URL and Anon (Public) Key below. Once connected, all property listings and database updates will sync directly to your Supabase cloud database instead of local storage.
                   </p>
+
+                  {/* Real-time Connection Status Indicator */}
+                  <div className="mb-6 p-4 rounded-2xl border text-xs bg-slate-50 border-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-bold text-gray-700">Diagnostic Status:</span>
+                      <button
+                        onClick={runConnectionTest}
+                        disabled={connectionStatus === 'testing'}
+                        className="text-[10px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-wider"
+                      >
+                        {connectionStatus === 'testing' ? 'Testing...' : 'Test Connection Now'}
+                      </button>
+                    </div>
+                    {connectionStatus === 'idle' && (
+                      <div className="flex items-center gap-2 text-gray-500">
+                        <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
+                        <span>Ready to test connection.</span>
+                      </div>
+                    )}
+                    {connectionStatus === 'testing' && (
+                      <div className="flex items-center gap-2 text-blue-600 animate-pulse">
+                        <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                        <span>Verifying connection keys & table access...</span>
+                      </div>
+                    )}
+                    {connectionStatus === 'success' && (
+                      <div className="flex items-center gap-2 text-emerald-600">
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                        <span className="font-semibold">Connected Successfully! Tables are active and ready.</span>
+                      </div>
+                    )}
+                    {connectionStatus === 'error' && (
+                      <div className="space-y-1.5 text-rose-600">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                          <span className="font-semibold">Connection Failed!</span>
+                        </div>
+                        <p className="text-[11px] bg-rose-50 p-2.5 rounded-lg border border-rose-100 text-rose-800 font-mono break-all whitespace-pre-wrap leading-relaxed">
+                          {connectionError}
+                        </p>
+                        {connectionError?.includes('relation "properties" does not exist') && (
+                          <div className="mt-2 text-[11px] text-gray-700 space-y-1 bg-amber-50 border border-amber-200 p-3 rounded-xl">
+                            <p className="font-bold text-amber-900">Missing Properties Table:</p>
+                            <p>You need to create the table structure in your Supabase Dashboard.</p>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(`-- Run this SQL in your Supabase SQL Editor:
+CREATE TABLE public.properties (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    name TEXT,
+    price NUMERIC NOT NULL,
+    location TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    image TEXT,
+    photos TEXT[] DEFAULT '{}',
+    photos_array TEXT[] DEFAULT '{}',
+    phone TEXT DEFAULT '',
+    whatsapp TEXT DEFAULT '',
+    owner_phone TEXT DEFAULT '',
+    owner_whatsapp TEXT DEFAULT '',
+    beds INTEGER DEFAULT 0,
+    baths INTEGER DEFAULT 0,
+    sqm INTEGER DEFAULT 0,
+    province TEXT DEFAULT 'Lusaka',
+    distance TEXT DEFAULT '',
+    owner_id TEXT DEFAULT 'demo_owner123',
+    owner_name TEXT DEFAULT '',
+    ownerName TEXT DEFAULT '',
+    verified BOOLEAN DEFAULT false,
+    featured BOOLEAN DEFAULT false,
+    available BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.properties ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public read" ON public.properties FOR SELECT USING (true);
+CREATE POLICY "Allow public insert" ON public.properties FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update" ON public.properties FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete" ON public.properties FOR DELETE USING (true);`);
+                                showToast('Copied SQL script to clipboard! Paste it into Supabase SQL Editor.', 'success');
+                              }}
+                              className="mt-1 px-3 py-1 bg-white hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-lg text-[10px] font-bold"
+                            >
+                              Copy Table SQL Script
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="space-y-4">
                     <div>
                       <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">Supabase URL</label>
@@ -1070,12 +1237,23 @@ export default function App() {
                   ></textarea>
                 </div>
 
-                <button
+                 <button
                   type="submit"
-                  className="w-full bg-[#b52330] hover:bg-[#9a1c26] text-white text-xs font-bold py-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                  disabled={isSavingListing}
+                  className={`w-full text-white text-xs font-bold py-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 ${isSavingListing ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#b52330] hover:bg-[#9a1c26]'}`}
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>{editingId ? 'Save Changes' : 'Publish Listing to tambu'}</span>
+                  {isSavingListing ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Plus className="w-4 h-4" />
+                  )}
+                  <span>
+                    {isSavingListing
+                      ? 'Saving to Database...'
+                      : editingId
+                      ? 'Save Changes'
+                      : 'Publish Listing to tambu'}
+                  </span>
                 </button>
               </form>
             </div>

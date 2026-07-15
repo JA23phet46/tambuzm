@@ -79,21 +79,40 @@ export function clearCustomSupabaseConfig() {
 }
 
 export function getSupabaseClient(): SupabaseClient | null {
+  // 1. First priority: user-configured custom keys
+  const custom = getCustomSupabaseConfig();
+  if (custom && custom.url && custom.key) {
+    if (!supabaseInstance || (supabaseInstance as any).supabaseUrl !== custom.url) {
+      try {
+        supabaseInstance = createClient(custom.url, custom.key);
+      } catch (e) {
+        console.error('Failed to init Custom Supabase:', e);
+      }
+    }
+    return supabaseInstance;
+  }
+
+  // 2. Second priority: compile-time environment variables
   let url = supabaseUrl;
   let key = supabaseAnonKey;
 
+  // 3. Third priority: server-provided runtime environment variables cached in localStorage
   if (!url || !key) {
-    const custom = getCustomSupabaseConfig();
-    if (custom) {
-      url = custom.url;
-      key = custom.key;
-    }
+    try {
+      const sUrl = localStorage.getItem('tambu_server_supabase_url');
+      const sKey = localStorage.getItem('tambu_server_supabase_key');
+      if (sUrl && sKey) {
+        url = sUrl.trim();
+        key = sKey.trim();
+      }
+    } catch (e) {}
   }
 
   if (!url || !key) {
     return null;
   }
-  if (!supabaseInstance) {
+
+  if (!supabaseInstance || (supabaseInstance as any).supabaseUrl !== url) {
     try {
       supabaseInstance = createClient(url, key);
     } catch (e) {
@@ -104,9 +123,31 @@ export function getSupabaseClient(): SupabaseClient | null {
 }
 
 export function isSupabaseConfigured(): boolean {
-  if (supabaseUrl && supabaseAnonKey) return true;
   const custom = getCustomSupabaseConfig();
-  return !!(custom && custom.url && custom.key);
+  if (custom && custom.url && custom.key) return true;
+  if (supabaseUrl && supabaseAnonKey) return true;
+  try {
+    const sUrl = localStorage.getItem('tambu_server_supabase_url');
+    const sKey = localStorage.getItem('tambu_server_supabase_key');
+    return !!(sUrl && sKey);
+  } catch (e) {}
+  return false;
+}
+
+export async function testSupabaseConnection(): Promise<{ success: boolean; error?: string }> {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return { success: false, error: 'Supabase client is not initialized. Please add your credentials.' };
+  }
+  try {
+    const { error } = await supabase.from('properties').select('id').limit(1);
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || String(err) };
+  }
 }
 
 /**
@@ -269,14 +310,14 @@ export async function savePropertyToSupabase(property: any): Promise<any> {
       .select();
 
     if (error) {
-      console.warn('Supabase Insert Error (falling back to local cache):', error);
-      return [payload];
+      console.error('Supabase Insert Error:', error);
+      throw new Error(`Failed to save to Supabase: ${error.message}. Please verify your tables and permissions.`);
     }
 
     return data;
-  } catch (err) {
-    console.warn('Supabase publishing failed (falling back to local cache):', err);
-    return [payload];
+  } catch (err: any) {
+    console.error('Supabase publishing failed:', err);
+    throw err;
   }
 }
 
@@ -354,10 +395,12 @@ export async function updatePropertyInSupabase(propertyId: string, fields: any):
       .update(payload)
       .eq('id', propertyId);
     if (error) {
-      console.warn('Could not update property in Supabase:', error.message);
+      console.error('Could not update property in Supabase:', error.message);
+      throw new Error(`Failed to update Supabase: ${error.message}`);
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error('Error in updatePropertyInSupabase:', err);
+    throw err;
   }
 }
 
@@ -373,10 +416,12 @@ export async function deletePropertyFromSupabase(propertyId: string): Promise<vo
       .delete()
       .eq('id', propertyId);
     if (error) {
-      console.warn('Could not delete property from Supabase:', error.message);
+      console.error('Could not delete property from Supabase:', error.message);
+      throw new Error(`Failed to delete from Supabase: ${error.message}`);
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error('Error in deletePropertyFromSupabase:', err);
+    throw err;
   }
 }
 
